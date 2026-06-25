@@ -86,9 +86,15 @@
     }
     renderTrend();
   };
+  // Topbar global search: jump to the patients page and apply the query there,
+  // reusing the existing filter/search pipeline so results stay consistent.
   window.handleSearch = (v) => {
-    /* Global search — placeholder, can be wired later */
-    if (!v) return;
+    const q = (v || '').trim();
+    if (!q) return;
+    window.switchPage('patients');
+    const box = document.getElementById('patientSearch');
+    if (box) box.value = q;
+    window.searchPatients(q);
   };
 
   /* ---------- Patient table rendering ---------- */
@@ -436,17 +442,23 @@
     });
   };
 
-  const renderPopBioAge = () => {
+  // data (optional): [{ band, chronoAge, bioAge }] from /v1/analytics/bio-age.
+  // Without it, falls back to the synthetic demo series.
+  const renderPopBioAge = (data) => {
     const cnv = document.getElementById('popBioAgeChart');
     if (!cnv || !window.Chart) return;
+    const real = Array.isArray(data) && data.length;
+    const labels = real ? data.map((d) => d.band) : ['30–39','40–49','50–59','60–69','70+'];
+    const chrono = real ? data.map((d) => d.chronoAge) : [34.5, 44.1, 54.2, 64.0, 73.5];
+    const bio = real ? data.map((d) => d.bioAge) : [37.2, 48.3, 58.1, 69.2, 78.1];
     if (charts.popBio) charts.popBio.destroy();
     charts.popBio = new Chart(cnv, {
       type: 'bar',
       data: {
-        labels: ['30–39','40–49','50–59','60–69','70+'],
+        labels,
         datasets: [
-          { label:'Хронологический', data:[34.5, 44.1, 54.2, 64.0, 73.5], backgroundColor: 'rgba(0,229,255,0.25)', borderRadius: 6 },
-          { label:'Биологический',   data:[37.2, 48.3, 58.1, 69.2, 78.1], backgroundColor: 'rgba(167,139,250,0.55)', borderRadius: 6 },
+          { label:'Хронологический', data: chrono, backgroundColor: 'rgba(0,229,255,0.25)', borderRadius: 6 },
+          { label:'Биологический',   data: bio, backgroundColor: 'rgba(167,139,250,0.55)', borderRadius: 6 },
         ],
       },
       options: {
@@ -478,20 +490,25 @@
     });
   };
 
-  const renderHeatmap = () => {
+  // data (optional): { columns, rows:[{ band, values }] } from /v1/analytics/heatmap.
+  // Without it, falls back to the synthetic risk matrix below.
+  const renderHeatmap = (data) => {
     const el = document.getElementById('heatmapContainer');
     if (!el) return;
-    const rows = ['20–29','30–39','40–49','50–59','60–69','70+'];
-    const cols = ['ССЗ','СД2','Онко','ХБП','Когн.'];
-    /* synthetic risk matrix (0–100) */
-    const m = [
-      [ 4,  3,  2,  2,  1],
-      [ 9,  8,  6,  5,  3],
-      [18, 16, 12, 10,  7],
-      [32, 26, 20, 18, 14],
-      [48, 34, 28, 26, 24],
-      [62, 41, 36, 35, 38],
-    ];
+    const real = data && Array.isArray(data.rows) && data.rows.length;
+    const rows = real ? data.rows.map((r) => r.band) : ['20–29','30–39','40–49','50–59','60–69','70+'];
+    const cols = real ? data.columns : ['ССЗ','СД2','Онко','ХБП','Когн.'];
+    /* risk matrix (0–100): live per-band averages, or synthetic demo */
+    const m = real
+      ? data.rows.map((r) => r.values)
+      : [
+          [ 4,  3,  2,  2,  1],
+          [ 9,  8,  6,  5,  3],
+          [18, 16, 12, 10,  7],
+          [32, 26, 20, 18, 14],
+          [48, 34, 28, 26, 24],
+          [62, 41, 36, 35, 38],
+        ];
     const cell = (v) => {
       const col = window.Ariadna.riskColor(v);
       const alpha = 0.2 + (v / 100) * 0.75;
@@ -636,6 +653,16 @@
         renderRiskDist();
       }
     } catch { /* нет данных — оставляем демо-распределение */ }
+
+    try {
+      const bio = await api.analytics.bioAge(); // [{ band, chronoAge, bioAge }]
+      if (Array.isArray(bio) && bio.length) renderPopBioAge(bio);
+    } catch { /* нет данных — оставляем демо-график био-возраста */ }
+
+    try {
+      const heat = await api.analytics.heatmap(); // { columns, rows:[{ band, values }] }
+      if (heat && Array.isArray(heat.rows) && heat.rows.length) renderHeatmap(heat);
+    } catch { /* нет данных — оставляем демо-тепловую карту */ }
   };
 
   window.logout = async () => {

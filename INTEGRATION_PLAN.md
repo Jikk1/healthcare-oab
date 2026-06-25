@@ -121,7 +121,8 @@ analytics/predict` и адаптер `patientToRow`. Подключать `<scri
 критический риск, AUC), `/v1/analytics/risk-distribution` → пончик + легенда распределения.
 В [dashboard.html](dashboard.html) проставлены id (`kpiTotal/kpiCritical/kpiAuc`,
 `rdLow/rdMed/rdHigh/rdCrit`). Проверено мок-данными: `1 543`, `0.861`, `1 100 (71%)` и т.д.
-Остаётся опциональным: графики bio-age/heatmap (`/bio-age`, `/heatmap`).
+Графики bio-age/heatmap тоже подключены: `loadAnalytics` тянет `/bio-age` и `/heatmap`
+и перерисовывает `popBioAgeChart` и `heatmapContainer` живыми данными (с откатом на демо).
 
 ### Фаза 4 — серверный прогноз ✅ ГОТОВО
 В [predict.html](predict.html) добавлен переключатель «Источник вычислений: Браузер / Сервер API»
