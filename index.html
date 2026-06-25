@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#05070F" />
+  <title>HealthCareOAB+ — Платформа предиктивной персонализированной медицины</title>
+  <meta name="description" content="Клиническая система поддержки принятия решений на основе мультимодальных данных пациента. Расчёт индивидуального профиля рисков, XAI-объяснение, сценарное моделирование." />
+  <meta name="author" content="HealthCareOAB+" />
+  <meta name="keywords" content="CDSS, предиктивная медицина, XAI, SHAP, HL7 FHIR, машинное обучение, клиническая аналитика, персонализированная медицина, профиль рисков" />
+
+  <!-- Open Graph / Twitter -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="HealthCareOAB+ — Прогностическая медицина нового поколения" />
+  <meta property="og:description" content="Ансамбль из 5 классов ML-моделей, XAI-объяснение и сценарное моделирование за 3 секунды." />
+  <meta property="og:locale" content="ru_RU" />
+  <meta property="og:site_name" content="HealthCareOAB+" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="HealthCareOAB+ — CDSS v2.0" />
+  <meta name="twitter:description" content="Клиническая система поддержки принятия решений. AUC-ROC ≥ 0.82. HL7 FHIR R4." />
+
+  <link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%2300E5FF'/><path d='M16 6v20M6 16h20' stroke='%23041018' stroke-width='4' stroke-linecap='round'/></svg>" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <link rel="preload" as="script" href="app.js" />
+  <link rel="stylesheet" href="styles.css" />
+
+  <!-- Structured data: Organization + SoftwareApplication -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "HealthCareOAB+",
+    "applicationCategory": "MedicalApplication",
+    "operatingSystem": "Web, iOS, Android",
+    "description": "Клиническая система поддержки принятия решений (CDSS) для предиктивной персонализированной медицины.",
+    "offers": {
+      "@type": "Offer",
+      "price": "29000",
+      "priceCurrency": "RUB"
+    },
+    "aggregateRating": {
+      "@type": "AggregateRating",
+      "ratingValue": "5.0",
+      "reviewCount": "3"
+    }
+  }
+  </script>
+</head>
+<body>
+
+<!-- ─── Preloader ─── -->
+<div class="preloader" id="preloader">
+  <svg viewBox="0 0 100 100">
+    <defs>
+      <linearGradient id="pgrad" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="#00E5FF"/>
+        <stop offset="100%" stop-color="#4AFFAA"/>
+      </linearGradient>
+    </defs>
+    <circle class="preloader-track" cx="50" cy="50" r="42"/>
+    <circle class="preloader-arc" cx="50" cy="50" r="42" pathLength="250"/>
+    <path d="M38 50h8l3-9 6 18 3-9h4" fill="none" stroke="#00E5FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+</div>
+
+<!-- ─── Navbar ─── -->
+<nav class="nav" id="nav" aria-label="Основная навигация">
+  <div class="nav-row">
+    <a href="#top" class="brand">
+      <span class="brand-mark">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M4 12h4l3-9 6 18 3-9h4" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </span>
+      HealthCare<span class="dim">OAB+</span>
+    </a>
+
+    <div class="nav-links">
+      <a href="#features">Функции</a>
+      <a href="#demo">Демо</a>
+      <a href="#how">Как работает</a>
+      <a href="#data">Данные</a>
+      <a href="#roadmap">Roadmap</a>
+      <a href="#pricing">Цены</a>
+    </div>
+
+    <div class="nav-actions">
+      <div class="live-pill"><span id="liveCount">143</span> клиники онлайн</div>
+      <a href="predict.html" class="btn btn-ghost btn-sm">OmniRisk</a>
+      <a href="dashboard.html" class="btn btn-primary btn-sm">
+        Открыть демо
+        <svg viewBox="0 0 24 24" fill="none"><path d="M5 12h14m-6-6 6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </a>
+      <button class="menu-btn" id="menuBtn" aria-label="Меню">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+  </div>
+</nav>
+<div class="mobile-nav" id="mobileNav">
+  <a href="#features">Функции</a>
+  <a href="#demo">Демо</a>
+  <a href="#how">Как работает</a>
+  <a href="#data">Данные</a>
+  <a href="#roadmap">Roadmap</a>
+  <a href="#pricing">Цены</a>
+  <a href="predict.html">OmniRisk · Универсальный прогноз</a>
+  <a href="dashboard.html" class="btn btn-primary btn-sm" style="margin-top:6px;">Открыть демо</a>
+</div>
+
+<!-- ─── Hero ─── -->
+<section class="hero" id="top">
+  <div class="hero-bg">
+    <div class="hero-grid"></div>
+    <canvas class="hero-canvas" id="heroCanvas"></canvas>
+    <div class="hero-blob b1"></div>
+    <div class="hero-blob b2"></div>
+    <div class="hero-blob b3"></div>
+    <div class="hero-scan"></div>
+  </div>
+
+  <div class="container hero-inner">
+    <span class="eyebrow reveal">CDSS v2.0 · HL7 FHIR R4 · Приказ №965н</span>
+    <h1 class="reveal d1">
+      Прогностическая медицина<br>
+      <span class="gradient-aurora-text">нового поколения</span>
+    </h1>
+    <p class="sub reveal d2">
+      Ансамбль из пяти классов ML-моделей анализирует мультимодальные данные пациента и возвращает
+      динамический профиль рисков с XAI-объяснением и сценарным моделированием — за 3 секунды.
+    </p>
+
+    <div class="hero-cta reveal d3">
+      <a href="dashboard.html" class="btn btn-primary btn-lg">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+        Открыть демо-дашборд
+      </a>
+      <a href="#how" class="btn btn-ghost btn-lg">
+        Как это работает
+        <svg viewBox="0 0 24 24" fill="none"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </a>
+    </div>
+
+    <div class="hero-metrics reveal d4">
+      <div class="hero-metric">
+        <div class="v gradient-text"><span data-count="0.82" data-decimals="2">0.00</span></div>
+        <div class="l">AUC-ROC</div>
+      </div>
+      <div class="hero-metric">
+        <div class="v gradient-text"><span data-count="50000" data-suffix="+">0</span></div>
+        <div class="l">Пациентов</div>
+      </div>
+      <div class="hero-metric">
+        <div class="v gradient-text">&lt;<span data-count="3">0</span>с</div>
+        <div class="l">Расчёт профиля</div>
+      </div>
+      <div class="hero-metric">
+        <div class="v gradient-text"><span data-count="15" data-suffix="+">0</span></div>
+        <div class="l">Типов рисков</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container marquee-wrap reveal">
+    <div class="marquee-label">Интеграция с ведущими МИС и сервисами данных</div>
+    <div class="marquee-track">
+      <span class="partner"><svg viewBox="0 0 24 24" fill="none"><path d="M3 10h18M6 10v11M18 10v11M9 4h6l1 6H8l1-6Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>МедИС</span>
+      <span class="partner"><svg viewBox="0 0 24 24" fill="none"><rect x="4" y="5" width="16" height="14" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M8 9h8M8 13h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Инфоклиника</span>
+      <span class="partner"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.8"/><path d="M12 8v4l3 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>МедWorkplace</span>
+      <span class="partner"><svg viewBox="0 0 24 24" fill="none"><path d="M4 19V9m6 10V5m6 14v-8m-16 8h22" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>1С:Медицина</span>
+      <span class="partner"><svg viewBox="0 0 24 24" fill="none"><path d="M3 20V10l9-6 9 6v10M9 20v-6h6v6" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>ЕГИСЗ</span>
+      <span class="partner"><svg viewBox="0 0 24 24" fill="none"><path d="M8 2c0 3 4 4 4 8s-4 5-4 8m8-16c0 3-4 4-4 8s4 5 4 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Apple Health</span>
+      <span class="partner"><svg viewBox="0 0 24 24" fill="none"><path d="M20 9c-1.5-4-6-5-8-2-2-3-6.5-2-8 2-1.6 4.4 3 9 8 12 5-3 9.6-7.6 8-12Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>Google Fit</span>
+      <span class="partner"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.8"/><path d="M12 6v6l4 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Garmin</span>
+      <!-- duplicate for seamless loop -->
+      <span class="partner"><svg viewBox="0 0 24 24" fill="none"><path d="M3 10h18M6 10v11M18 10v11M9 4h6l1 6H8l1-6Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>МедИС</span>
+      <span class="partner"><svg viewBox="0 0 24 24" fill="none"><rect x="4" y="5" width="16" height="14" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M8 9h8M8 13h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Инфоклиника</span>
+      <span class="partner"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.8"/><path d="M12 8v4l3 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>МедWorkplace</span>
+      <span class="partner"><svg viewBox="0 0 24 24" fill="none"><path d="M4 19V9m6 10V5m6 14v-8m-16 8h22" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>1С:Медицина</span>
+      <span class="partner"><svg viewBox="0 0 24 24" fill="none"><path d="M3 20V10l9-6 9 6v10M9 20v-6h6v6" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>ЕГИСЗ</span>
+      <span class="partner"><svg viewBox="0 0 24 24" fill="none"><path d="M8 2c0 3 4 4 4 8s-4 5-4 8m8-16c0 3-4 4-4 8s4 5 4 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Apple Health</span>
+      <span class="partner"><svg viewBox="0 0 24 24" fill="none"><path d="M20 9c-1.5-4-6-5-8-2-2-3-6.5-2-8 2-1.6 4.4 3 9 8 12 5-3 9.6-7.6 8-12Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>Google Fit</span>
+      <span class="partner"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.8"/><path d="M12 6v6l4 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Garmin</span>
+    </div>
+  </div>
+</section>
+
+<!-- ─── Features (Bento) ─── -->
+<section id="features" class="section">
+  <div class="container">
+    <div class="section-head reveal">
+      <span class="eyebrow">Возможности платформы</span>
+      <h2>Мощные инструменты<br><span class="gradient-text">клинической аналитики</span></h2>
+      <p>Каждый модуль спроектирован под реальные сценарии работы врача, главврача и медицинского директора.</p>
+    </div>
+
+    <div class="bento">
+      <div class="card signature reveal">
+        <div class="feature-ico"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2v20M5 6c3 1 4 4 7 4s4-3 7-4M5 18c3-1 4-4 7-4s4 3 7 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
+        <h3>Ансамблевый ML с пятислойной архитектурой</h3>
+        <p>Cox Regression, LightGBM, Graph Neural Networks, RuBERT и Computer Vision — стекинг через XGBoost мета-learner. Мета-слой адаптируется к полноте входных данных, не обнуляя результат при отсутствии модальностей.</p>
+        <span class="chip">AUC-ROC ≥ 0.82</span>
+        <span class="chip">5 моделей</span>
+        <span class="chip">XGBoost stacking</span>
+
+        <svg class="signature-visual" viewBox="0 0 320 320" fill="none" aria-hidden="true">
+          <defs>
+            <linearGradient id="sig1" x1="0" x2="1" y1="0" y2="1">
+              <stop offset="0" stop-color="#00E5FF"/>
+              <stop offset="1" stop-color="#A78BFA"/>
+            </linearGradient>
+            <linearGradient id="sig2" x1="0" x2="1" y1="1" y2="0">
+              <stop offset="0" stop-color="#4AFFAA"/>
+              <stop offset="1" stop-color="#00E5FF"/>
+            </linearGradient>
+          </defs>
+          <g style="transform-origin:center; animation: spinSlow 40s linear infinite;">
+            <circle cx="160" cy="160" r="140" stroke="url(#sig1)" stroke-width="0.7" opacity="0.3"/>
+            <circle cx="160" cy="160" r="110" stroke="url(#sig2)" stroke-width="0.7" opacity="0.4"/>
+            <circle cx="160" cy="160" r="80"  stroke="url(#sig1)" stroke-width="0.7" opacity="0.5" stroke-dasharray="4 6"/>
+          </g>
+          <g style="transform-origin:center; animation: spinSlow 25s linear infinite reverse;">
+            <g>
+              <circle cx="160" cy="20"  r="6" fill="#00E5FF"/>
+              <circle cx="300" cy="160" r="6" fill="#4AFFAA"/>
+              <circle cx="160" cy="300" r="6" fill="#A78BFA"/>
+              <circle cx="20"  cy="160" r="6" fill="#FFB547"/>
+              <circle cx="258" cy="62"  r="4" fill="#fff" opacity="0.6"/>
+              <circle cx="258" cy="258" r="4" fill="#fff" opacity="0.6"/>
+              <circle cx="62"  cy="258" r="4" fill="#fff" opacity="0.6"/>
+              <circle cx="62"  cy="62"  r="4" fill="#fff" opacity="0.6"/>
+            </g>
+          </g>
+          <g stroke="url(#sig1)" stroke-width="1" opacity="0.6" fill="none">
+            <path d="M160 20 L160 160 L300 160" />
+            <path d="M160 160 L20 160" />
+            <path d="M160 160 L160 300" />
+            <path d="M160 160 L258 62" />
+            <path d="M160 160 L258 258" />
+          </g>
+          <circle cx="160" cy="160" r="34" fill="url(#sig1)" opacity="0.15"/>
+          <circle cx="160" cy="160" r="22" fill="url(#sig2)" opacity="0.35"/>
+          <circle cx="160" cy="160" r="10" fill="#fff"/>
+        </svg>
+      </div>
+
+      <div class="card mint col-4 reveal d1">
+        <div class="feature-ico"><svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><path d="m20 20-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
+        <h3>XAI-объяснимость</h3>
+        <p>SHAP-waterfall для каждого риска. Модифицируемые и немодифицируемые факторы — в одном экране.</p>
+        <span class="chip">SHAP values</span>
+      </div>
+
+      <div class="card amber col-4 reveal d2">
+        <div class="feature-ico"><svg viewBox="0 0 24 24" fill="none"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></div>
+        <h3>Сценарное моделирование</h3>
+        <p>«Что если» — пересчёт профиля риска при изменении схемы лечения в реальном времени.</p>
+        <span class="chip">What-if engine</span>
+      </div>
+
+      <div class="card violet col-4 reveal d3">
+        <div class="feature-ico"><svg viewBox="0 0 24 24" fill="none"><path d="M3 17V7m6 10V11m6 6V5m6 12v-7M3 21h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
+        <h3>Прогноз 5 и 10 лет</h3>
+        <p>Визуализация изменения рисков во времени с учётом вмешательств и доверительных интервалов.</p>
+        <span class="chip">Timeline 10y</span>
+      </div>
+
+      <div class="card rose col-4 reveal d1">
+        <div class="feature-ico"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3 4 6v6c0 4 3.4 7.7 8 9 4.6-1.3 8-5 8-9V6l-8-3Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></div>
+        <h3>ФЗ-152 / GDPR</h3>
+        <p>Федеративное обучение — данные не покидают клинику. AES-256, TLS 1.3, RBAC, полный audit trail.</p>
+        <span class="chip">Приказ №965н</span>
+      </div>
+
+      <div class="card col-4 reveal d2">
+        <div class="feature-ico"><svg viewBox="0 0 24 24" fill="none"><path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
+        <h3>HL7 FHIR R4</h3>
+        <p>Подключение к любой МИС через стандартный адаптер за 2 недели. REST + GraphQL + WebHooks.</p>
+        <span class="chip">OpenAPI 3.0</span>
+      </div>
+
+      <div class="card mint col-4 reveal d3">
+        <div class="feature-ico"><svg viewBox="0 0 24 24" fill="none"><rect x="7" y="2" width="10" height="20" rx="2" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="18" r="1" fill="currentColor"/></svg></div>
+        <h3>Мобильное приложение</h3>
+        <p>iOS и Android. Биологический возраст, трекинг вмешательств, sync с носимыми устройствами.</p>
+        <span class="chip">iOS · Android</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── Interactive Demo ─── -->
+<section id="demo" class="section">
+  <div class="container">
+    <div class="section-head reveal">
+      <span class="eyebrow">Живая демонстрация</span>
+      <h2>Попробуйте <span class="gradient-text">прогнозный движок</span></h2>
+      <p>Измените факторы — и наблюдайте, как модель пересчитывает профиль рисков в реальном времени.</p>
+    </div>
+
+    <div class="demo-wrap">
+      <div class="demo-panel reveal">
+        <h3>Параметры пациента</h3>
+        <p class="helper">Синтетические данные · для ознакомления</p>
+
+        <div style="margin-top:26px">
+          <div class="slider-row">
+            <label>Возраст</label>
+            <span class="vv" id="ageV">48 лет</span>
+            <input type="range" class="range" id="ageS" min="25" max="80" step="1" value="48" />
+          </div>
+          <div class="slider-row">
+            <label>Систолическое АД, мм рт.ст.</label>
+            <span class="vv" id="bpV">142</span>
+            <input type="range" class="range" id="bpS" min="100" max="190" step="1" value="142" />
+          </div>
+          <div class="slider-row">
+            <label>Общий холестерин, ммоль/л</label>
+            <span class="vv" id="chV">6.2</span>
+            <input type="range" class="range" id="chS" min="3" max="9" step="0.1" value="6.2" />
+          </div>
+        </div>
+
+        <div class="flex gap-sm" style="flex-wrap:wrap; margin-top:22px;">
+          <div class="toggle-chip on" id="smokeC"><span class="chkbox"></span>Курение</div>
+          <div class="toggle-chip" id="statC"><span class="chkbox"></span>Статины</div>
+          <div class="toggle-chip" id="sportC"><span class="chkbox"></span>Регулярный спорт</div>
+        </div>
+
+        <div class="factors">
+          <div class="factor imm"><span class="dot"></span><span>Возраст (немодиф.)</span><span class="val up">+2.1σ</span></div>
+          <div class="factor mod"><span class="dot"></span><span>АД · модифицируемо</span><span class="val up">+1.4σ</span></div>
+          <div class="factor mod"><span class="dot"></span><span>Холестерин · модифицируемо</span><span class="val up">+0.9σ</span></div>
+          <div class="factor mod"><span class="dot"></span><span>Курение · модифицируемо</span><span class="val up">+0.8σ</span></div>
+          <div class="factor mod"><span class="dot"></span><span>Физ. активность</span><span class="val down">−0.6σ</span></div>
+        </div>
+      </div>
+
+      <div class="demo-panel reveal d1" style="display:flex;flex-direction:column;">
+        <h3>Интегральный риск</h3>
+        <p class="helper">Горизонт прогноза · 10 лет</p>
+
+        <div class="gauge-wrap">
+          <div class="gauge">
+            <svg id="gauge" viewBox="0 0 220 220">
+              <defs>
+                <linearGradient id="garcGrad" x1="0" x2="1" y1="0" y2="1">
+                  <stop offset="0%" stop-color="#FFB547"/>
+                  <stop offset="100%" stop-color="#FF5E7E"/>
+                </linearGradient>
+              </defs>
+              <g transform="rotate(135 110 110)">
+                <circle cx="110" cy="110" r="90" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="14" stroke-linecap="round" stroke-dasharray="424" stroke-dashoffset="106"/>
+                <circle class="arc-fg" cx="110" cy="110" r="90" fill="none" stroke="url(#garcGrad)" stroke-width="14" stroke-linecap="round" stroke-dasharray="424" stroke-dashoffset="424" style="transition: stroke-dashoffset 1s var(--ease-out);"/>
+              </g>
+            </svg>
+            <div class="gauge-center">
+              <div class="gauge-value" id="gaugeValue">48%</div>
+              <div class="gauge-label">Итого · 10 лет</div>
+            </div>
+          </div>
+
+          <div class="gauge-legend">
+            <div class="risk-bar" id="ccs">
+              <div class="name">Сердечно-сосудистые</div><div class="pct">0%</div>
+              <div class="track"><div class="fill"></div></div>
+            </div>
+            <div class="risk-bar" id="met">
+              <div class="name">Метаболические</div><div class="pct">0%</div>
+              <div class="track"><div class="fill"></div></div>
+            </div>
+            <div class="risk-bar" id="onco">
+              <div class="name">Онкологические</div><div class="pct">0%</div>
+              <div class="track"><div class="fill"></div></div>
+            </div>
+            <div class="risk-bar" id="neuro">
+              <div class="name">Нейродегенеративные</div><div class="pct">0%</div>
+              <div class="track"><div class="fill"></div></div>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top:auto;padding-top:22px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--text-3);">
+          <span>Достоверность: <span style="color:var(--mint);">высокая</span></span>
+          <span>Расчёт: <span class="mono" style="color:var(--text);" id="totalRisk">48%</span></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── How it works ─── -->
+<section id="how" class="section">
+  <div class="container">
+    <div class="section-head reveal">
+      <span class="eyebrow">Рабочий процесс</span>
+      <h2>От данных к решению<br><span class="gradient-text">за 3 секунды</span></h2>
+      <p>Полный цикл от сбора мультимодальных данных до структурированного плана вмешательств.</p>
+    </div>
+
+    <div class="steps">
+      <div class="step reveal">
+        <div class="step-num">01</div>
+        <div>
+          <div class="step-title">Сбор мультимодальных данных</div>
+          <p class="step-desc">Автоматическая агрегация из МИС через FHIR R4: лабораторные анализы, ЭКГ, анамнез, врачебные записи, носимые устройства и опционально геномные маркеры.</p>
+          <div class="step-tags">
+            <span class="tag">HL7 FHIR R4</span><span class="tag">10 классов данных</span><span class="tag">NLP pipeline</span>
+          </div>
+        </div>
+      </div>
+      <div class="step reveal d1">
+        <div class="step-num">02</div>
+        <div>
+          <div class="step-title">Ансамблевый расчёт рисков</div>
+          <p class="step-desc">Пять слоёв моделей параллельно обрабатывают данные. Мета-learner объединяет предсказания с учётом полноты данных — отсутствующие модальности не обнуляют результат, а снижают вес.</p>
+          <div class="step-tags">
+            <span class="tag">Cox · LightGBM · GNN · BERT · CV</span><span class="tag">&lt;3с расчёт</span>
+          </div>
+        </div>
+      </div>
+      <div class="step reveal d2">
+        <div class="step-num">03</div>
+        <div>
+          <div class="step-title">XAI-объяснение факторов</div>
+          <p class="step-desc">SHAP-waterfall показывает вклад каждого фактора. Модифицируемые факторы выделены — врач сразу видит точки для вмешательства.</p>
+          <div class="step-tags">
+            <span class="tag">SHAP values</span><span class="tag">Топ-10 факторов</span><span class="tag">CI</span>
+          </div>
+        </div>
+      </div>
+      <div class="step reveal d3">
+        <div class="step-num">04</div>
+        <div>
+          <div class="step-title">Сценарное моделирование</div>
+          <p class="step-desc">Гипотетическое вмешательство — отмена курения, назначение статинов — и пересчитанный профиль риска в режиме реального времени.</p>
+          <div class="step-tags">
+            <span class="tag">What-if</span><span class="tag">Real-time</span>
+          </div>
+        </div>
+      </div>
+      <div class="step reveal d4">
+        <div class="step-num">05</div>
+        <div>
+          <div class="step-title">Структурированные рекомендации</div>
+          <p class="step-desc">На основе профиля рисков, клинических руководств (MedDRA, RxNorm) и сценарного анализа — приоритизированный план вмешательств с квантифицированной эффективностью.</p>
+          <div class="step-tags">
+            <span class="tag">MedDRA · RxNorm</span><span class="tag">RuBERT</span><span class="tag">Priority score</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── Data sources ─── -->
+<section id="data" class="section">
+  <div class="container">
+    <div class="section-head reveal">
+      <span class="eyebrow">Модальности данных</span>
+      <h2>10 классов данных,<br><span class="gradient-text">5 уровней глубины</span></h2>
+      <p>Расширение модальностей по мере роста платформы. MVP — на доступных клинических данных.</p>
+    </div>
+
+    <div class="datatable-wrap reveal">
+      <table class="datatable">
+        <thead>
+          <tr><th>Класс данных</th><th>Источники</th><th>Формат</th><th>Версия</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Лабораторные данные</td><td>ОАК, биохимия, гормоны, витамины, коагулограмма</td><td><span class="pill">HL7 FHIR</span></td><td><span class="ver">MVP</span></td></tr>
+          <tr><td>Демография / анамнез</td><td>Пол, возраст, ИМТ, АД, история болезней</td><td><span class="pill">Форма / МИС</span></td><td><span class="ver">MVP</span></td></tr>
+          <tr><td>Неструктурированный текст</td><td>Врачебные записи, выписки, протоколы</td><td><span class="pill">NLP pipeline</span></td><td><span class="ver">MVP</span></td></tr>
+          <tr><td>ЭКГ-данные</td><td>12-канальный ЭКГ, Холтер</td><td><span class="pill">WFDB / XML</span></td><td><span class="ver">MVP</span></td></tr>
+          <tr><td>Фармакология</td><td>Текущая терапия, дозировки, длительность</td><td><span class="pill">RxNorm / МНН</span></td><td><span class="ver">MVP</span></td></tr>
+          <tr><td>Носимые устройства</td><td>ВРС, SpO₂, сон, ЧСС в покое и нагрузке</td><td><span class="pill">REST API</span></td><td><span class="ver v2">V2</span></td></tr>
+          <tr><td>Визуальная диагностика</td><td>Глазное дно, рентген ОГК, дерматоскопия</td><td><span class="pill">DICOM / JPEG</span></td><td><span class="ver v2">V2</span></td></tr>
+          <tr><td>Социально-экономические</td><td>Место проживания, профессия, уровень стресса</td><td><span class="pill">Опросник</span></td><td><span class="ver v2">V2</span></td></tr>
+          <tr><td>Геномные данные</td><td>SNP-файлы VCF, 23andMe-совместимые тесты</td><td><span class="pill">VCF 4.2</span></td><td><span class="ver v3">V3</span></td></tr>
+          <tr><td>Микробиомные данные</td><td>16S rRNA, метагеномное секвенирование</td><td><span class="pill">FASTQ</span></td><td><span class="ver v3">V3</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ─── Testimonials ─── -->
+<section class="section">
+  <div class="container">
+    <div class="section-head reveal">
+      <span class="eyebrow">Врачи о платформе</span>
+      <h2>Мнения клиницистов,<br><span class="gradient-text">протестировавших систему</span></h2>
+    </div>
+
+    <div class="tgrid">
+      <div class="card quote reveal">
+        <div class="stars">★★★★★</div>
+        <p>«XAI-объяснение — это то, чего не хватало всем предыдущим системам. Теперь я вижу не просто цифру риска, а понимаю, что её формирует и что поддаётся коррекции».</p>
+        <div class="author">
+          <div class="avatar">АП</div>
+          <div>
+            <div class="author-name">д.м.н. А. Петрова</div>
+            <div class="author-role">Кардиолог · НМИЦ кардиологии</div>
+          </div>
+        </div>
+      </div>
+      <div class="card quote reveal d1">
+        <div class="stars">★★★★★</div>
+        <p>«Сценарное моделирование экономит колоссальное время на консилиумах. За 3 минуты сравниваем 4 схемы лечения по прогнозируемому снижению рисков».</p>
+        <div class="author">
+          <div class="avatar">МС</div>
+          <div>
+            <div class="author-name">проф. М. Савельев</div>
+            <div class="author-role">Главврач · ГКБ им. Юдина</div>
+          </div>
+        </div>
+      </div>
+      <div class="card quote reveal d2">
+        <div class="stars">★★★★★</div>
+        <p>«Внедрение через FHIR-виджет заняло 10 дней — не пришлось трогать нашу МИС. Популяционный дашборд выявил, что 23% диспансерных пациентов имеют незафиксированный критический риск».</p>
+        <div class="author">
+          <div class="avatar">ЕК</div>
+          <div>
+            <div class="author-name">к.м.н. Е. Куликова</div>
+            <div class="author-role">Мед. директор · сеть «МедПрофи»</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── Roadmap ─── -->
+<section id="roadmap" class="section">
+  <div class="container">
+    <div class="section-head reveal">
+      <span class="eyebrow">Дорожная карта</span>
+      <h2>От ССЗ-рисков<br><span class="gradient-text">до полного геномного профиля</span></h2>
+      <p>Поэтапное расширение модальностей и географии платформы в горизонте 30 месяцев.</p>
+    </div>
+
+    <div class="phases">
+      <div class="card phase active reveal">
+        <div class="tag-dot">◉ Активная разработка</div>
+        <h3>MVP</h3>
+        <div class="months">Месяцы 1–8</div>
+        <ul>
+          <li>Расчёт ССЗ-рисков</li>
+          <li>XAI топ-5 факторов</li>
+          <li>Виджет для МИС</li>
+          <li>Соответствие ФЗ-152</li>
+          <li>Пилот 1–2 клиники</li>
+        </ul>
+        <div class="bar"><i data-progress="68"></i></div>
+      </div>
+      <div class="card phase reveal d1">
+        <div class="tag-dot">◎ Планирование</div>
+        <h3>V2</h3>
+        <div class="months">Месяцы 9–18</div>
+        <ul>
+          <li>Носимые + ЭКГ</li>
+          <li>Метаболические и онко-риски</li>
+          <li>Мобильное приложение</li>
+          <li>5+ интеграций МИС</li>
+          <li>B2B страховые</li>
+        </ul>
+        <div class="bar"><i data-progress="12"></i></div>
+      </div>
+      <div class="card phase reveal d2">
+        <div class="tag-dot">○ Концепция</div>
+        <h3>V3</h3>
+        <div class="months">Месяцы 19–30</div>
+        <ul>
+          <li>Геномный модуль (PRS)</li>
+          <li>CV: глазное дно + рентген</li>
+          <li>White-label API</li>
+          <li>GDPR + MDR</li>
+          <li>Контракт с минздравом</li>
+        </ul>
+        <div class="bar"><i data-progress="3"></i></div>
+      </div>
+      <div class="card phase reveal d3">
+        <div class="tag-dot">○ Исследование</div>
+        <h3>V4</h3>
+        <div class="months">Месяцы 31+</div>
+        <ul>
+          <li>Микробиомный модуль</li>
+          <li>Платформа клин. исследований</li>
+          <li>Фарм. компании (RWE)</li>
+          <li>Рынки СНГ и Ближний Восток</li>
+          <li>Фед. диспансеризация</li>
+        </ul>
+        <div class="bar"><i data-progress="1"></i></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── Pricing ─── -->
+<section id="pricing" class="section">
+  <div class="container">
+    <div class="section-head reveal">
+      <span class="eyebrow">Тарифы</span>
+      <h2>Прозрачная <span class="gradient-text">ценовая политика</span></h2>
+      <p>Все планы включают соответствие ФЗ-152 и техническую поддержку. Первые 30 дней — бесплатно.</p>
+    </div>
+
+    <div class="toggle reveal">
+      <button id="tMo" class="active">Ежемесячно</button>
+      <button id="tYr">Ежегодно <span class="save">−25%</span></button>
+    </div>
+
+    <div class="pricing-grid">
+      <div class="card plan reveal">
+        <div class="name">Базовый</div>
+        <div class="price" id="priceBasic">₽29 000<small>/мес</small></div>
+        <div class="per" id="periodBasic">в месяц · до 500 пациентов</div>
+        <p>Для небольших клиник и частной практики.</p>
+        <button class="btn btn-outline">Начать бесплатно</button>
+        <ul>
+          <li><span class="ok">✓</span>До 500 активных пациентов</li>
+          <li><span class="ok">✓</span>Расчёт ССЗ-рисков</li>
+          <li><span class="ok">✓</span>XAI-объяснение</li>
+          <li><span class="ok">✓</span>FHIR-интеграция (1 МИС)</li>
+          <li><span class="ok">✓</span>Email-поддержка</li>
+          <li class="muted"><span class="no">–</span>Сценарное моделирование</li>
+          <li class="muted"><span class="no">–</span>Популяционная аналитика</li>
+        </ul>
+      </div>
+
+      <div class="card plan pop reveal d1">
+        <div class="name">Профессиональный</div>
+        <div class="price" id="pricePro">₽79 000<small>/мес</small></div>
+        <div class="per" id="periodPro">в месяц · без ограничений</div>
+        <p>Для медицинских центров и сетей.</p>
+        <button class="btn btn-primary">Начать бесплатно</button>
+        <ul>
+          <li><span class="ok">✓</span>Неограниченные пациенты</li>
+          <li><span class="ok">✓</span>Все классы рисков</li>
+          <li><span class="ok">✓</span>XAI + сценарное моделирование</li>
+          <li><span class="ok">✓</span>Популяционный дашборд</li>
+          <li><span class="ok">✓</span>До 5 интеграций МИС</li>
+          <li><span class="ok">✓</span>Приоритетная поддержка 8×5</li>
+          <li><span class="ok">✓</span>Мобильное приложение</li>
+        </ul>
+      </div>
+
+      <div class="card plan reveal d2">
+        <div class="name">Энтерпрайз</div>
+        <div class="price"><span class="gradient-aurora-text">Договорная</span></div>
+        <div class="per">индивидуальный расчёт</div>
+        <p>Для крупных учреждений и гос. сектора.</p>
+        <button class="btn btn-ghost">Связаться с нами</button>
+        <ul>
+          <li><span class="ok">✓</span>On-premise развёртывание</li>
+          <li><span class="ok">✓</span>Федеративное обучение</li>
+          <li><span class="ok">✓</span>SLA 99.9%</li>
+          <li><span class="ok">✓</span>Поддержка 24/7</li>
+          <li><span class="ok">✓</span>Полная кастомизация</li>
+          <li><span class="ok">✓</span>Геномный и CV-модули (V3)</li>
+          <li><span class="ok">✓</span>RWE-исследования (V4)</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── FAQ ─── -->
+<section id="faq" class="section">
+  <div class="container">
+    <div class="section-head reveal">
+      <span class="eyebrow">Вопросы</span>
+      <h2>Часто задаваемые <span class="gradient-text">вопросы</span></h2>
+    </div>
+
+    <div class="faq reveal">
+      <details>
+        <summary>Как система защищает персональные данные пациентов?</summary>
+        <div class="answer">Платформа использует федеративное обучение — данные пациентов никогда не покидают инфраструктуру клиники. На центральный сервер передаются только веса моделей. Данные шифруются AES-256 в покое и TLS 1.3 при передаче. Полное соответствие ФЗ-152, опционально GDPR. Разграничение доступа по ролям (RBAC) с полным audit trail.</div>
+      </details>
+      <details>
+        <summary>Какова реальная точность прогнозов?</summary>
+        <div class="answer">AUC-ROC ≥ 0.82 на валидационной выборке для ССЗ-рисков, измеренный на открытых датасетах NHANES и UK Biobank. Чувствительность к высокому риску ≥ 85%, специфичность ≥ 75%. Каждое предсказание сопровождается доверительным интервалом и классом достоверности в зависимости от полноты входных данных.</div>
+      </details>
+      <details>
+        <summary>Как долго занимает подключение к нашей МИС?</summary>
+        <div class="answer">Базовое внедрение через FHIR R4-адаптер занимает 1–2 недели без модификации вашей МИС. Система интегрируется как iframe-виджет или нативный компонент в карточку пациента. Поддерживаемые МИС на старте: МедИС, Инфоклиника, МедWorkplace, 1С:Медицина, ЕГИСЗ. Подключение новой МИС — до 2 недель дополнительно.</div>
+      </details>
+      <details>
+        <summary>Соответствует ли система требованиям Приказа Минздрава №965н?</summary>
+        <div class="answer">Да. Платформа спроектирована как инструмент поддержки принятия решений (CDSS), а не автономный диагностический инструмент — это соответствует классу IIb по MDR/МДТР. Каждое предсказание сопровождается XAI-объяснением для врача. Система не ставит диагнозов. В Приказе №965н предусмотрена регистрация ПО класса CDSS — мы готовим пакет документов.</div>
+      </details>
+      <details>
+        <summary>Нужны ли все 10 классов данных для работы системы?</summary>
+        <div class="answer">Нет. Мета-learner адаптируется к имеющимся данным: если геномные или микробиомные данные недоступны, их вес автоматически обнуляется, а остальные веса пересчитываются. MVP работает с базовым набором: лабораторные анализы + анамнез + ЭКГ + врачебные записи.</div>
+      </details>
+      <details>
+        <summary>Есть ли пробный период и как начать?</summary>
+        <div class="answer">Да, 30 дней бесплатного полного доступа без привязки карты. Для старта достаточно заполнить форму ниже — мы настроим тестовое подключение к вашей МИС в тестовом режиме на анонимизированных данных.</div>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- ─── CTA ─── -->
+<section class="section" id="cta">
+  <div class="container">
+    <div class="cta-block reveal">
+      <span class="eyebrow">Готовы начать?</span>
+      <h2 style="margin-top:18px">Готовы трансформировать<br><span class="gradient-text">клиническую диагностику?</span></h2>
+      <p style="max-width:540px;margin:14px auto 0;">Присоединяйтесь к клиникам, которые уже используют предиктивную медицину. Первые 30 дней — бесплатно.</p>
+      <form class="cta-form" onsubmit="return false;">
+        <input type="email" class="input" id="ctaEmail" placeholder="Ваш рабочий email" required />
+        <button class="btn btn-primary" id="ctaBtn">
+          <span>→</span> Начать бесплатно
+        </button>
+      </form>
+      <p class="note">Без привязки карты · Без автоматической подписки · Отмена в 1 клик</p>
+    </div>
+  </div>
+</section>
+
+<!-- ─── Footer ─── -->
+<footer class="footer">
+  <div class="container">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <a href="#top" class="brand">
+          <span class="brand-mark">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M4 12h4l3-9 6 18 3-9h4" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+          HealthCare<span class="dim">OAB+</span>
+        </a>
+        <p>Платформа предиктивной персонализированной медицины. Ансамблевый ML + XAI для клинических систем поддержки решений.</p>
+      </div>
+      <div>
+        <div class="fh">Продукт</div>
+        <ul class="footer-links">
+          <li><a href="#features">Функции</a></li>
+          <li><a href="#how">Как работает</a></li>
+          <li><a href="#data">Данные</a></li>
+          <li><a href="#roadmap">Roadmap</a></li>
+          <li><a href="dashboard.html">Демо-дашборд</a></li>
+        </ul>
+      </div>
+      <div>
+        <div class="fh">Компания</div>
+        <ul class="footer-links">
+          <li><a href="#">О платформе</a></li>
+          <li><a href="#">Команда</a></li>
+          <li><a href="#">Блог</a></li>
+          <li><a href="#">Пресс-кит</a></li>
+          <li><a href="#">Контакты</a></li>
+        </ul>
+      </div>
+      <div>
+        <div class="fh">Правовое</div>
+        <ul class="footer-links">
+          <li><a href="#">Политика конфиденциальности</a></li>
+          <li><a href="#">Условия использования</a></li>
+          <li><a href="#">Соответствие ФЗ-152</a></li>
+          <li><a href="#">Приказ №965н</a></li>
+          <li><a href="#">DPA / GDPR</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© <span id="year">2026</span> HealthCareOAB+. Все права защищены.</span>
+      <span class="footer-status">Все системы работают штатно</span>
+    </div>
+  </div>
+</footer>
+
+<!-- Smooth-scroll (optional, served locally so the page works offline) -->
+<script src="vendor/lenis.min.js" defer></script>
+<script src="app.js" defer></script>
+</body>
+</html>

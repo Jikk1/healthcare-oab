@@ -1,0 +1,85 @@
+name: backend-ci
+
+on:
+  push:
+    branches: [main]
+    paths: ['backend/**', '.github/workflows/ci.yml']
+  pull_request:
+    paths: ['backend/**', '.github/workflows/ci.yml']
+
+defaults:
+  run:
+    working-directory: backend
+
+jobs:
+  quality:
+    name: Lint · Typecheck · Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+
+  integration:
+    name: Integration (Postgres + Redis)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: oab
+          POSTGRES_PASSWORD: oab
+          POSTGRES_DB: healthcare_oab_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U oab" --health-interval 5s
+          --health-timeout 3s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s
+          --health-timeout 3s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://oab:oab@localhost:5432/healthcare_oab_test?schema=public
+      REDIS_URL: redis://localhost:6379
+      JWT_ACCESS_SECRET: ci-access-secret-which-is-long-enough-0123456789
+      JWT_REFRESH_SECRET: ci-refresh-secret-which-is-long-enough-0123456789
+      PHI_ENCRYPTION_KEY: ci-phi-encryption-key-32bytes-min-0123456789
+      RUN_INTEGRATION: '1'
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npx prisma migrate deploy
+      - run: npm test
+
+  docker:
+    name: Build image
+    runs-on: ubuntu-latest
+    needs: [quality]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: backend
+          file: backend/Dockerfile
+          push: false
+          tags: healthcare-oab/api:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

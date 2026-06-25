@@ -1,0 +1,100 @@
+# ============================================================
+# HealthCareOAB+ — local dev / demo stack
+#   docker compose up -d
+#   docker compose exec api npm run prisma:deploy && docker compose exec api npm run db:seed
+# ============================================================
+name: healthcare-oab
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: oab
+      POSTGRES_PASSWORD: oab_dev_password
+      POSTGRES_DB: healthcare_oab
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U oab -d healthcare_oab']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes', '--maxmemory', '256mb', '--maxmemory-policy', 'allkeys-lru']
+    ports:
+      - '6379:6379'
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 8080
+      HOST: 0.0.0.0
+      DATABASE_URL: postgresql://oab:oab_dev_password@postgres:5432/healthcare_oab?schema=public
+      REDIS_URL: redis://redis:6379
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-dev-access-secret-change-me-please-32-bytes-min}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-dev-refresh-secret-change-me-please-32-bytes-min}
+      PHI_ENCRYPTION_KEY: ${PHI_ENCRYPTION_KEY:-ZGV2LXBoaS1lbmNyeXB0aW9uLWtleS0zMmJ5dGVzLXh4eHg=}
+      CORS_ORIGINS: http://localhost:5173,http://localhost:8080,http://127.0.0.1:5500
+      OTEL_ENABLED: 'true'
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+      METRICS_ENABLED: 'true'
+    ports:
+      - '8080:8080'
+
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    restart: unless-stopped
+    volumes:
+      - ./infra/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - '9090:9090'
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: 'true'
+    volumes:
+      - ./infra/observability/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - grafanadata:/var/lib/grafana
+    ports:
+      - '3000:3000'
+    depends_on:
+      - prometheus
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.58
+    restart: unless-stopped
+    environment:
+      COLLECTOR_OTLP_ENABLED: 'true'
+    ports:
+      - '16686:16686' # UI
+      - '4318:4318' # OTLP HTTP
+
+volumes:
+  pgdata:
+  redisdata:
+  grafanadata:

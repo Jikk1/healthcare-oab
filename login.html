@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HealthCareOAB+ — Вход</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+  <!-- Адрес API. Поменяйте content, если бэкенд не на :8080. -->
+  <meta name="hc-api-base" content="http://localhost:8080">
+  <style>
+    .auth-body { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
+    .auth-body > main { width: 100%; max-width: 420px; }
+    .auth-glow {
+      position: fixed; inset: 0; z-index: -1; pointer-events: none;
+      background:
+        radial-gradient(60% 50% at 50% 0%, rgba(0,229,255,0.10), transparent 70%),
+        radial-gradient(50% 50% at 80% 100%, rgba(167,139,250,0.10), transparent 70%);
+    }
+    .auth-card {
+      width: 100%; max-width: 420px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); padding: 38px 34px;
+      backdrop-filter: blur(14px);
+      box-shadow: 0 30px 80px -30px rgba(0,0,0,0.7);
+    }
+    .auth-brand {
+      font-family: var(--font-display); font-weight: 600; font-size: 19px;
+      letter-spacing: -0.01em; color: var(--text); margin-bottom: 26px;
+      display: flex; align-items: center; gap: 9px;
+    }
+    .auth-brand .mark {
+      width: 30px; height: 30px; display: grid; place-items: center;
+      border-radius: 9px; background: var(--grad-primary); color: #04121A; font-size: 17px;
+    }
+    .auth-brand span { color: var(--cyan); }
+    .auth-card h1 {
+      font-family: var(--font-display); font-weight: 600; font-size: 26px;
+      color: var(--text); margin: 0 0 6px;
+    }
+    .auth-sub { color: var(--text-3); font-size: 14px; margin: 0 0 26px; }
+    .auth-field { margin-bottom: 18px; }
+    .auth-field.is-hidden { display: none; }
+    .auth-field label {
+      display: block; font-size: 12px; letter-spacing: 0.04em;
+      text-transform: uppercase; color: var(--text-2); margin-bottom: 8px;
+    }
+    .auth-field input {
+      width: 100%; padding: 13px 15px;
+      background: var(--bg-2); border: 1px solid var(--border-hi);
+      border-radius: var(--radius-sm); color: var(--text); font-size: 15px;
+      transition: border-color .2s var(--ease-out), box-shadow .2s var(--ease-out);
+    }
+    .auth-field input::placeholder { color: var(--text-3); }
+    .auth-field input:focus {
+      outline: none; border-color: var(--cyan);
+      box-shadow: 0 0 0 3px rgba(0,229,255,0.14);
+    }
+    .auth-field input[inputmode="numeric"] {
+      font-family: var(--font-mono); letter-spacing: 0.4em; text-align: center;
+    }
+    .auth-error {
+      display: flex; gap: 9px; align-items: flex-start;
+      background: rgba(255,94,126,0.08); border: 1px solid rgba(255,94,126,0.3);
+      color: #FFC2CE; border-radius: var(--radius-sm);
+      padding: 11px 14px; font-size: 13.5px; margin-bottom: 18px;
+    }
+    .auth-error[hidden] { display: none; }
+    .auth-submit { width: 100%; justify-content: center; margin-top: 4px; }
+    .auth-submit[disabled] { opacity: .65; cursor: progress; }
+    .auth-hint {
+      margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--border);
+      font-size: 12.5px; color: var(--text-3); line-height: 1.7;
+    }
+    .auth-hint code {
+      font-family: var(--font-mono); color: var(--text-2);
+      background: var(--bg-2); padding: 1px 6px; border-radius: 6px;
+    }
+  </style>
+</head>
+<body class="auth-body">
+  <div class="auth-glow" aria-hidden="true"></div>
+
+  <main>
+    <form class="auth-card" id="loginForm" novalidate autocomplete="on">
+      <div class="auth-brand"><span class="mark" aria-hidden="true">⚕</span> HealthCare<span>OAB+</span></div>
+      <h1>Вход в систему</h1>
+      <p class="auth-sub">Кабинет врача · предиктивная аналитика</p>
+
+      <div class="auth-field">
+        <label for="email">Email</label>
+        <input id="email" name="email" type="email" autocomplete="username"
+               required placeholder="clinician@oab-clinic.demo" />
+      </div>
+
+      <div class="auth-field">
+        <label for="password">Пароль</label>
+        <input id="password" name="password" type="password"
+               autocomplete="current-password" required placeholder="••••••••••••" />
+      </div>
+
+      <div class="auth-field is-hidden" id="mfaField">
+        <label for="mfaCode">Код из приложения (MFA)</label>
+        <input id="mfaCode" name="mfaCode" type="text" inputmode="numeric"
+               autocomplete="one-time-code" maxlength="6" pattern="\d{6}" placeholder="000000" />
+      </div>
+
+      <div class="auth-error" id="authError" role="alert" hidden></div>
+
+      <button class="btn btn-primary btn-lg auth-submit" type="submit" id="submitBtn">Войти</button>
+
+      <p class="auth-hint">
+        Демо-доступ: <code>clinician@oab-clinic.demo</code><br />
+        пароль <code>OabDemo_Clinician_2026!</code>
+      </p>
+    </form>
+  </main>
+
+  <script src="api.js"></script>
+  <script src="login.js"></script>
+</body>
+</html>

@@ -1,0 +1,488 @@
+// ============================================================
+// HealthCareOAB+ — data model (PostgreSQL via Prisma)
+//
+// Design notes:
+//  - Multi-tenant: every PHI-bearing row carries organizationId and is
+//    isolated at the query layer (defense in depth alongside RLS in prod).
+//  - PHI columns (names, MRN, birthDate) are stored as AES-256-GCM
+//    ciphertext (see src/shared/crypto.ts) — encryption at rest beyond disk.
+//  - Transactional outbox (OutboxEvent) guarantees at-least-once event
+//    delivery without dual-write inconsistency.
+//  - IdempotencyKey backs safe retries on mutating endpoints.
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------- Enums ----------------------
+
+enum Role {
+  OWNER
+  ADMIN
+  CLINICIAN
+  ANALYST
+  BILLING
+  VIEWER
+}
+
+enum Sex {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum RiskType {
+  CARDIOVASCULAR
+  MYOCARDIAL_INFARCTION
+  STROKE
+  DIABETES_T2
+  ONCOLOGY
+  NEURO_COGNITIVE
+  CHRONIC_KIDNEY
+}
+
+enum SmokingStatus {
+  NEVER
+  FORMER
+  CURRENT
+}
+
+enum SubscriptionPlan {
+  TRIAL
+  BASIC
+  PRO
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  OPEN
+  PAID
+  VOID
+  UNCOLLECTIBLE
+}
+
+enum RecommendationCategory {
+  PHARMACOLOGY
+  LIFESTYLE
+  MONITORING
+  DIAGNOSTIC
+  REFERRAL
+}
+
+enum OutboxStatus {
+  PENDING
+  PUBLISHED
+  FAILED
+}
+
+// ---------------------- Tenancy & IAM ----------------------
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  // ISO country, for residency / compliance routing.
+  country   String   @default("RU")
+  timezone  String   @default("Europe/Moscow")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members       Membership[]
+  patients      Patient[]
+  subscription  Subscription?
+  invoices      Invoice[]
+  apiKeys       ApiKey[]
+  webhooks      Webhook[]
+  auditLogs     AuditLog[]
+
+  @@index([isActive])
+  @@map("organizations")
+}
+
+model User {
+  id              String    @id @default(cuid())
+  email           String    @unique
+  // argon2id hash
+  passwordHash    String
+  fullName        String
+  isEmailVerified Boolean   @default(false)
+  isActive        Boolean   @default(true)
+  lastLoginAt     DateTime?
+  // Brute-force lockout
+  failedLogins    Int       @default(0)
+  lockedUntil     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  memberships    Membership[]
+  sessions       Session[]
+  mfaCredential  MfaCredential?
+  resetTokens    PasswordResetToken[]
+  verifyTokens   EmailVerificationToken[]
+  auditLogs      AuditLog[]
+
+  @@index([isActive])
+  @@map("users")
+}
+
+// User ⇄ Organization with a role (RBAC).
+model Membership {
+  id             String   @id @default(cuid())
+  userId         String
+  organizationId String
+  role           Role     @default(VIEWER)
+  createdAt      DateTime @default(now())
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+  @@index([organizationId])
+  @@map("memberships")
+}
+
+// One row per active refresh-token / device. Enables session listing & revocation.
+model Session {
+  id               String   @id @default(cuid())
+  userId           String
+  // Active tenant for this session; role is re-derived from membership on rotate.
+  organizationId   String
+  // SHA-256 of the refresh token — raw token is never stored.
+  refreshTokenHash String   @unique
+  // Rotation lineage: detect refresh-token reuse (theft).
+  family           String
+  userAgent        String?
+  ipAddress        String?
+  deviceLabel      String?
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  createdAt        DateTime @default(now())
+  lastUsedAt       DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([family])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model MfaCredential {
+  id          String    @id @default(cuid())
+  userId      String    @unique
+  // TOTP secret, encrypted at rest.
+  secretEnc   String
+  isEnabled   Boolean   @default(false)
+  // Hashed single-use recovery codes (JSON array of sha256 hashes).
+  recoveryEnc String?
+  confirmedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("mfa_credentials")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
+
+model EmailVerificationToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("email_verification_tokens")
+}
+
+// ---------------------- Clinical core ----------------------
+
+model Patient {
+  id             String    @id @default(cuid())
+  organizationId String
+  // Stable, human-facing code (e.g. P-00142). Unique per org.
+  mrn            String
+  // PHI — AES-256-GCM ciphertext.
+  firstNameEnc   String
+  lastNameEnc    String
+  birthDateEnc   String?
+  // Non-identifying attributes kept plaintext for analytics/filtering.
+  sex            Sex
+  ageYears       Int
+  // Denormalised cache of the latest assessment for fast list/overview reads.
+  latestRiskLevel RiskLevel?
+  latestCvRisk    Float?
+  latestDmRisk    Float?
+  latestBioAge    Int?
+  isArchived      Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  biomarkerSets   BiomarkerSet[]
+  assessments     RiskAssessment[]
+  recommendations Recommendation[]
+
+  @@unique([organizationId, mrn])
+  @@index([organizationId, latestRiskLevel])
+  @@index([organizationId, isArchived])
+  @@map("patients")
+}
+
+// Snapshot of clinical inputs at a point in time → feeds the risk engine.
+model BiomarkerSet {
+  id            String        @id @default(cuid())
+  patientId     String
+  recordedAt    DateTime      @default(now())
+  // Vitals & labs
+  systolicBp    Int?
+  diastolicBp   Int?
+  ldl           Float? // mmol/L
+  hdl           Float? // mmol/L
+  totalChol     Float? // mmol/L
+  hba1c         Float? // %
+  bmi           Float? // kg/m^2
+  egfr          Float? // mL/min/1.73m^2
+  // Behaviour
+  smokingStatus   SmokingStatus @default(NEVER)
+  packYears       Float         @default(0)
+  activityPerWeek Int           @default(0)
+  // History (booleans for the demo; expand to coded conditions in prod)
+  familyHistoryCvd Boolean @default(false)
+  onStatins        Boolean @default(false)
+  createdAt        DateTime @default(now())
+
+  patient     Patient          @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  assessments RiskAssessment[]
+
+  @@index([patientId, recordedAt])
+  @@map("biomarker_sets")
+}
+
+// Output of the risk-scoring engine for one biomarker snapshot.
+model RiskAssessment {
+  id             String    @id @default(cuid())
+  patientId      String
+  biomarkerSetId String?
+  modelVersion   String
+  // Aggregate
+  overallRisk    Float
+  riskLevel      RiskLevel
+  bioAge         Int
+  chronoAge      Int
+  // Per-domain absolute 10-year risk (%)
+  cvRisk     Float
+  miRisk     Float
+  strokeRisk Float
+  dmRisk     Float
+  oncoRisk   Float
+  neuroRisk  Float
+  ckdRisk    Float
+  // Explainability + confidence intervals as structured JSON.
+  // shap: [{ feature, value, modifiable }], ci: { mi: [lo,hi], ... }
+  shapFactors Json
+  confidence  Json
+  computedAt  DateTime @default(now())
+
+  patient      Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  biomarkerSet BiomarkerSet? @relation(fields: [biomarkerSetId], references: [id], onDelete: SetNull)
+
+  @@index([patientId, computedAt])
+  @@map("risk_assessments")
+}
+
+model Recommendation {
+  id        String                 @id @default(cuid())
+  patientId String
+  category  RecommendationCategory
+  title     String
+  detail    String
+  // e.g. "-14% MI"
+  impact    String?
+  // Evidence grade / guideline ref (e.g. ESC 2021, class I).
+  evidence  String?
+  priority  Int                    @default(0)
+  isApplied Boolean                @default(false)
+  createdAt DateTime               @default(now())
+
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId, priority])
+  @@map("recommendations")
+}
+
+// ---------------------- Billing ----------------------
+
+model Subscription {
+  id             String             @id @default(cuid())
+  organizationId String             @unique
+  plan           SubscriptionPlan   @default(TRIAL)
+  status         SubscriptionStatus @default(TRIALING)
+  // Plan limit; null = unlimited (PRO/ENTERPRISE).
+  patientLimit       Int?
+  seatLimit          Int?
+  currentPeriodStart DateTime         @default(now())
+  currentPeriodEnd   DateTime
+  cancelAtPeriodEnd  Boolean          @default(false)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("subscriptions")
+}
+
+model Invoice {
+  id             String        @id @default(cuid())
+  organizationId String
+  number         String        @unique
+  amountCents    Int
+  currency       String        @default("RUB")
+  status         InvoiceStatus @default(DRAFT)
+  periodStart    DateTime
+  periodEnd      DateTime
+  issuedAt       DateTime?
+  paidAt         DateTime?
+  createdAt      DateTime      @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status])
+  @@map("invoices")
+}
+
+// ---------------------- Integrations ----------------------
+
+model ApiKey {
+  id             String    @id @default(cuid())
+  organizationId String
+  name           String
+  // Only a hash is stored; the raw key is shown once at creation.
+  keyHash        String    @unique
+  prefix         String // first 8 chars, for display & lookup
+  scopes         String[]  @default([])
+  lastUsedAt     DateTime?
+  revokedAt      DateTime?
+  createdAt      DateTime  @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("api_keys")
+}
+
+model Webhook {
+  id             String   @id @default(cuid())
+  organizationId String
+  url            String
+  events         String[] @default([])
+  // HMAC signing secret (encrypted at rest).
+  secretEnc      String
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("webhooks")
+}
+
+// ---------------------- Cross-cutting ----------------------
+
+model AuditLog {
+  id             String   @id @default(cuid())
+  organizationId String?
+  actorUserId    String?
+  action         String // e.g. patient.read, auth.login, risk.compute
+  resourceType   String?
+  resourceId     String?
+  ipAddress      String?
+  userAgent      String?
+  // Arbitrary structured context.
+  metadata       Json?
+  // Tamper-evidence: sha256(prevHash + canonical(payload)).
+  prevHash       String?
+  entryHash      String
+  createdAt      DateTime @default(now())
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  actor        User?         @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([action])
+  @@map("audit_logs")
+}
+
+// Transactional outbox — events are written in the same tx as state changes,
+// then relayed asynchronously to the event bus by a background dispatcher.
+model OutboxEvent {
+  id          String       @id @default(cuid())
+  aggregate   String
+  aggregateId String
+  type        String
+  payload     Json
+  status      OutboxStatus @default(PENDING)
+  attempts    Int          @default(0)
+  publishedAt DateTime?
+  createdAt   DateTime     @default(now())
+
+  @@index([status, createdAt])
+  @@map("outbox_events")
+}
+
+// Backs idempotent mutating requests (Idempotency-Key header).
+model IdempotencyKey {
+  id          String   @id @default(cuid())
+  key         String
+  scope       String // userId or apiKeyId
+  method      String
+  path        String
+  requestHash String
+  statusCode  Int
+  response    Json
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime
+
+  @@unique([scope, key])
+  @@index([expiresAt])
+  @@map("idempotency_keys")
+}

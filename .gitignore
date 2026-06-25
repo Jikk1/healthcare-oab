@@ -1,0 +1,32 @@
+# ============================================================
+# HealthCareOAB+ — root ignore (frontend + backend)
+# ============================================================
+
+# Dependencies (matches any nested node_modules, incl. backend/)
+node_modules/
+
+# Build / coverage output
+dist/
+build/
+coverage/
+
+# Secrets & local env — NEVER commit real values
+.env
+.env.local
+.env.*.local
+backend/.env
+backend/.env.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor / OS cruft
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Prisma local sqlite, temp
+prisma/*.db
+tmp/

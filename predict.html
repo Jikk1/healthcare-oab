@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HealthCareOAB+ — Универсальный прогноз рисков (OmniRisk)</title>
+  <meta name="description" content="OmniRisk — универсальная система прогнозирования рисков всех известных патологий: мультимодальный профиль, 6 горизонтов, цифровой двойник, объяснимый ИИ." />
+  <!-- Адрес API для серверного режима вычислений (Фаза 4). -->
+  <meta name="hc-api-base" content="http://localhost:8080" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="vendor/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="dashboard.css" />
+  <style>
+    .or-wrap { max-width: 1400px; margin: 0 auto; padding: 24px clamp(14px, 3vw, 36px) 80px; }
+    .or-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin: 8px 0 22px; }
+    .or-head h1 { font-family: var(--font-display, 'Space Grotesk'); font-size: clamp(1.5rem, 3vw, 2.1rem); letter-spacing: -0.02em; margin: 0; }
+    .or-head .sub { color: var(--text-3); font-size: 13px; margin-top: 4px; }
+    .or-nav { display: flex; gap: 8px; }
+    .or-grid { display: grid; grid-template-columns: 340px 1fr; gap: 20px; align-items: start; }
+    @media (max-width: 1000px) { .or-grid { grid-template-columns: 1fr; } }
+    .or-panel { background: var(--surface-1, rgba(255,255,255,0.02)); border: 1px solid var(--border); border-radius: 16px; padding: 18px; }
+    .or-panel h3 { margin: 0 0 14px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); font-weight: 600; }
+    .or-field { margin-bottom: 14px; }
+    .or-field label { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--text-2); margin-bottom: 6px; }
+    .or-field label b { font-family: var(--font-mono); color: var(--cyan, #00E5FF); font-weight: 600; }
+    .or-field input[type=range] { width: 100%; accent-color: var(--cyan, #00E5FF); }
+    .or-seg { display: flex; gap: 6px; flex-wrap: wrap; }
+    .or-seg button, .or-chip { font: inherit; font-size: 12px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: transparent; color: var(--text-2); cursor: pointer; transition: .15s; }
+    .or-seg button.active, .or-chip.active { background: var(--cyan, #00E5FF); color: #04121A; border-color: transparent; font-weight: 600; }
+    .or-accordion { border-top: 1px solid var(--border); margin-top: 6px; }
+    .or-accordion > summary { cursor: pointer; padding: 11px 2px; font-size: 13px; font-weight: 500; list-style: none; display: flex; justify-content: space-between; }
+    .or-accordion > summary::-webkit-details-marker { display: none; }
+    .or-accordion > summary::after { content: '+'; color: var(--text-3); }
+    .or-accordion[open] > summary::after { content: '−'; }
+    .or-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; margin-bottom: 20px; }
+    .or-kpi { background: var(--surface-1, rgba(255,255,255,0.02)); border: 1px solid var(--border); border-radius: 14px; padding: 16px; }
+    .or-kpi .v { font-family: var(--font-display, 'Space Grotesk'); font-size: clamp(1.6rem, 3vw, 2.2rem); font-weight: 700; letter-spacing: -0.02em; line-height: 1; }
+    .or-kpi .l { font-size: 11.5px; color: var(--text-3); margin-top: 8px; text-transform: uppercase; letter-spacing: 0.06em; }
+    .or-kpi .hint { font-size: 11px; color: var(--text-3); margin-top: 4px; font-family: var(--font-mono); }
+    .or-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media (max-width: 1200px) { .or-cards { grid-template-columns: 1fr; } }
+    .or-card { background: var(--surface-1, rgba(255,255,255,0.02)); border: 1px solid var(--border); border-radius: 16px; padding: 18px; }
+    .or-card h2 { font-size: 15px; margin: 0 0 4px; }
+    .or-card .cap { font-size: 12px; color: var(--text-3); margin-bottom: 14px; }
+    .or-chart { position: relative; height: 280px; }
+    .or-disease { display: grid; grid-template-columns: 1fr auto; gap: 10px 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); }
+    .or-disease:last-child { border-bottom: none; }
+    .or-disease .nm { font-size: 13.5px; }
+    .or-disease .meta { font-size: 11px; color: var(--text-3); font-family: var(--font-mono); margin-top: 2px; }
+    .or-bar { grid-column: 1 / -1; height: 7px; border-radius: 6px; background: rgba(255,255,255,0.06); overflow: hidden; }
+    .or-bar > i { display: block; height: 100%; border-radius: 6px; transition: width .5s ease; }
+    .or-prob { font-family: var(--font-mono); font-weight: 700; font-size: 15px; text-align: right; }
+    .or-shaprow { display: grid; grid-template-columns: 160px 1fr 48px; gap: 10px; align-items: center; margin-bottom: 7px; font-size: 12px; }
+    .or-shaprow .track { height: 18px; background: rgba(255,255,255,0.04); border-radius: 5px; position: relative; }
+    .or-shaprow .fill { position: absolute; top: 0; height: 100%; border-radius: 5px; }
+    .or-shaprow .val { font-family: var(--font-mono); text-align: right; }
+    .or-att { display: flex; flex-direction: column; gap: 7px; }
+    .or-att-row { display: grid; grid-template-columns: 150px 1fr 40px; gap: 8px; align-items: center; font-size: 12px; }
+    .or-att-row .track { height: 8px; background: rgba(255,255,255,0.05); border-radius: 5px; overflow: hidden; }
+    .or-att-row .track > i { display: block; height: 100%; background: linear-gradient(90deg, var(--violet, #A78BFA), var(--cyan, #00E5FF)); }
+    .or-note { font-size: 11.5px; color: var(--text-3); line-height: 1.5; margin-top: 12px; padding: 10px 12px; border: 1px dashed var(--border); border-radius: 10px; }
+    .or-full { grid-column: 1 / -1; }
+  </style>
+</head>
+<body>
+<div class="or-wrap">
+  <header class="or-head">
+    <div>
+      <h1>OmniRisk · Универсальный прогноз рисков</h1>
+      <div class="sub">Мультимодальный профиль → вероятность любой патологии на 6 горизонтах · цифровой двойник · объяснимый ИИ. <b>Демо</b>: расчёт выполняется в браузере, данные не передаются.</div>
+    </div>
+    <nav class="or-nav">
+      <a href="index.html" class="btn btn-outline btn-sm">← На главную</a>
+      <a href="dashboard.html" class="btn btn-outline btn-sm">Дашборд врача</a>
+    </nav>
+  </header>
+
+  <div class="or-grid">
+    <!-- ===== Панель ввода профиля ===== -->
+    <aside class="or-panel" id="inputPanel">
+      <h3>Профиль пациента</h3>
+
+      <div class="or-field">
+        <label>Источник вычислений <span id="computeHint" style="color:var(--text-3);font-weight:400"></span></label>
+        <div class="or-seg" id="computeSource">
+          <button data-src="client" class="active">Браузер</button>
+          <button data-src="server">Сервер API</button>
+        </div>
+      </div>
+
+      <div class="or-field">
+        <label>Пресет</label>
+        <div class="or-seg" id="presets">
+          <button data-preset="healthy">Здоровый</button>
+          <button data-preset="typical" class="active">Типичный</button>
+          <button data-preset="high">Высокий риск</button>
+        </div>
+      </div>
+
+      <div class="or-field">
+        <label>Возраст <b id="ageV">50</b></label>
+        <input type="range" id="age" min="18" max="90" value="50" />
+      </div>
+      <div class="or-field">
+        <label>Пол</label>
+        <div class="or-seg" id="sex">
+          <button data-sex="MALE" class="active">Муж</button>
+          <button data-sex="FEMALE">Жен</button>
+        </div>
+      </div>
+
+      <details class="or-accordion" open><summary>Лаборатория и витальные</summary>
+        <div style="padding:8px 0">
+          <div class="or-field"><label>САД, мм рт.ст. <b id="sbpV">130</b></label><input type="range" id="sbp" min="95" max="210" value="130"></div>
+          <div class="or-field"><label>LDL, ммоль/л <b id="ldlV">3.2</b></label><input type="range" id="ldl" min="15" max="80" value="32"></div>
+          <div class="or-field"><label>HDL, ммоль/л <b id="hdlV">1.3</b></label><input type="range" id="hdl" min="6" max="30" value="13"></div>
+          <div class="or-field"><label>HbA1c, % <b id="hba1cV">5.6</b></label><input type="range" id="hba1c" min="45" max="120" value="56"></div>
+          <div class="or-field"><label>ИМТ, кг/м² <b id="bmiV">26</b></label><input type="range" id="bmi" min="16" max="48" value="26"></div>
+          <div class="or-field"><label>СКФ, мл/мин <b id="egfrV">90</b></label><input type="range" id="egfr" min="20" max="120" value="90"></div>
+        </div>
+      </details>
+
+      <details class="or-accordion"><summary>Образ жизни</summary>
+        <div style="padding:8px 0">
+          <div class="or-field"><label>Курение</label>
+            <div class="or-seg" id="smoke">
+              <button data-smoke="NEVER" class="active">Нет</button>
+              <button data-smoke="FORMER">В прошлом</button>
+              <button data-smoke="CURRENT">Курит</button>
+            </div>
+          </div>
+          <div class="or-field"><label>Пачко-лет <b id="packV">0</b></label><input type="range" id="pack" min="0" max="60" value="0"></div>
+          <div class="or-field"><label>Активность, трен/нед <b id="actV">3</b></label><input type="range" id="act" min="0" max="7" value="3"></div>
+          <div class="or-field"><label>Качество питания <b id="dietV">60</b></label><input type="range" id="diet" min="10" max="100" value="60"></div>
+          <div class="or-field"><label>Сон, ч <b id="sleepV">7.5</b></label><input type="range" id="sleep" min="40" max="100" value="75"></div>
+          <div class="or-field"><label>Стресс (0–10) <b id="stressV">3</b></label><input type="range" id="stress" min="0" max="10" value="3"></div>
+          <div class="or-field"><label>Алкоголь, ед/нед <b id="alcV">3</b></label><input type="range" id="alc" min="0" max="50" value="3"></div>
+        </div>
+      </details>
+
+      <details class="or-accordion"><summary>Геном и эпигенетика</summary>
+        <div style="padding:8px 0">
+          <div class="or-field"><label>PRS ССЗ (z) <b id="prsCvV">0.0</b></label><input type="range" id="prsCv" min="-30" max="30" value="0"></div>
+          <div class="or-field"><label>PRS Онко (z) <b id="prsOncoV">0.0</b></label><input type="range" id="prsOnco" min="-30" max="30" value="0"></div>
+          <div class="or-field"><label>Моногенные варианты <b id="monoV">0</b></label><input type="range" id="mono" min="0" max="3" value="0"></div>
+          <div class="or-field"><label>Ускорение эпиг. часов, лет <b id="epiV">0</b></label><input type="range" id="epi" min="-10" max="15" value="0"></div>
+        </div>
+      </details>
+
+      <details class="or-accordion"><summary>Воспаление, среда, семья</summary>
+        <div style="padding:8px 0">
+          <div class="or-field"><label>вч-СРБ, мг/л <b id="crpV">1.0</b></label><input type="range" id="crp" min="0" max="100" value="10"></div>
+          <div class="or-field"><label>PM2.5, мкг/м³ <b id="pmV">8</b></label><input type="range" id="pm" min="2" max="60" value="8"></div>
+          <div class="or-field"><label>Родственники с ССЗ <b id="famV">0</b></label><input type="range" id="fam" min="0" max="4" value="0"></div>
+        </div>
+      </details>
+
+      <div class="or-note">Инструмент поддержки принятия решений, не диагностическое устройство. Коэффициенты иллюстративные; подлежат калибровке на реальных когортах.</div>
+    </aside>
+
+    <!-- ===== Результаты ===== -->
+    <main>
+      <div class="or-kpis" id="kpis"></div>
+
+      <div class="or-cards">
+        <section class="or-card or-full">
+          <h2>Прогноз по заболеваниям <span id="horizonLabel" style="color:var(--cyan)"></span></h2>
+          <div class="cap">Вероятность дебюта на выбранном горизонте. Выберите горизонт прогноза:</div>
+          <div class="or-seg" id="horizons" style="margin-bottom:14px">
+            <button data-h="1">1 год</button>
+            <button data-h="3">3 года</button>
+            <button data-h="5">5 лет</button>
+            <button data-h="10" class="active">10 лет</button>
+            <button data-h="20">20 лет</button>
+            <button data-h="lifetime">Пожизненно</button>
+          </div>
+          <div class="or-seg" id="catFilter" style="margin-bottom:14px"></div>
+          <div id="diseaseList"></div>
+        </section>
+
+        <section class="or-card">
+          <h2>Цифровой двойник · системы организма</h2>
+          <div class="cap">Индекс здоровья систем сейчас (0–100, выше — лучше)</div>
+          <div class="or-chart"><canvas id="twinRadar"></canvas></div>
+        </section>
+
+        <section class="or-card">
+          <h2>Траектория здоровья · 10 лет</h2>
+          <div class="cap">Общий индекс двойника: без вмешательства vs при соблюдении</div>
+          <div class="or-chart"><canvas id="twinLine"></canvas></div>
+        </section>
+
+        <section class="or-card">
+          <h2>Объяснимый ИИ · SHAP <span id="shapDisease" style="color:var(--cyan)"></span></h2>
+          <div class="cap">Знаковый вклад признаков в риск выбранного заболевания</div>
+          <div id="shapList"></div>
+        </section>
+
+        <section class="or-card">
+          <h2>Внимание по модальностям</h2>
+          <div class="cap">Какие источники данных повлияли на прогноз сильнее</div>
+          <div class="or-att" id="attList"></div>
+          <div class="or-note" id="causalChain"></div>
+        </section>
+
+        <section class="or-card or-full">
+          <h2>Сценарное моделирование вмешательства</h2>
+          <div class="cap">Приведите модифицируемые факторы к цели и оцените эффект (контрфактический расчёт)</div>
+          <div class="or-seg" id="interventions" style="margin-bottom:14px">
+            <button data-iv="bp" class="or-chip">Контроль АД → 125</button>
+            <button data-iv="ldl" class="or-chip">Статины: LDL → 2.4</button>
+            <button data-iv="quit" class="or-chip">Отказ от курения</button>
+            <button data-iv="active" class="or-chip">Активность 5×/нед</button>
+            <button data-iv="weight" class="or-chip">ИМТ → 24</button>
+          </div>
+          <div id="interventionResult"></div>
+        </section>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script src="api.js"></script>
+<script src="omnirisk.js"></script>
+<script src="predict.js"></script>
+</body>
+</html>
