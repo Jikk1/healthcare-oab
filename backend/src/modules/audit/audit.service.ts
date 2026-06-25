@@ -19,6 +19,26 @@ export interface AuditInput {
   metadata?: Record<string, unknown>;
 }
 
+/**
+ * Recursively sort object keys so serialization is independent of key order.
+ * Required because metadata round-trips through Postgres `jsonb`, which does NOT
+ * preserve insertion order — without this, an entry written as {riskLevel, overall}
+ * reads back as {overall, riskLevel} and the chain hash no longer matches.
+ */
+function sortKeysDeep(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortKeysDeep);
+  if (value && typeof value === 'object') {
+    const src = value as Record<string, unknown>;
+    return Object.keys(src)
+      .sort()
+      .reduce<Record<string, unknown>>((acc, k) => {
+        acc[k] = sortKeysDeep(src[k]);
+        return acc;
+      }, {});
+  }
+  return value;
+}
+
 function canonical(input: AuditInput, createdAt: string): string {
   return JSON.stringify({
     o: input.organizationId ?? null,
@@ -26,7 +46,7 @@ function canonical(input: AuditInput, createdAt: string): string {
     act: input.action,
     rt: input.resourceType ?? null,
     ri: input.resourceId ?? null,
-    m: input.metadata ?? null,
+    m: input.metadata ? sortKeysDeep(input.metadata) : null,
     t: createdAt,
   });
 }
