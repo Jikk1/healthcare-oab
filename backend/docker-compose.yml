@@ -63,6 +63,19 @@ services:
     ports:
       - '8080:8080'
 
+  web:
+    build:
+      context: ..
+      dockerfile: frontend.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      # Browser talks to the host-published API port, not the compose network name.
+      API_BASE: http://localhost:8080
+    ports:
+      - '8081:8081'
+
   prometheus:
     image: prom/prometheus:v2.53.0
     restart: unless-stopped

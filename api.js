@@ -19,13 +19,19 @@
   // База API. Переопределяется через <meta name="hc-api-base" content="..."> или HCApi.configure().
   // Дев-замечание: фронт и бэк по умолчанию оба хотят :8080 — разведите порты
   // (фронт на :5173, бэк на :8080), иначе CORS/конфликт порта. См. INTEGRATION_PLAN.md.
-  function readMetaBase() {
+  function readConfiguredBase() {
+    // 1) Runtime config (container generates config.js → window.HC_CONFIG.apiBase
+    //    from the API_BASE env var). Lets one image serve any environment.
+    if (window.HC_CONFIG && window.HC_CONFIG.apiBase) {
+      return String(window.HC_CONFIG.apiBase).replace(/\/+$/, '');
+    }
+    // 2) Static build/dev override via <meta name="hc-api-base" content="...">.
     const el = document.querySelector('meta[name="hc-api-base"]');
     return el && el.content ? el.content.replace(/\/+$/, '') : null;
   }
 
   const state = {
-    baseUrl: readMetaBase() || 'http://localhost:8080',
+    baseUrl: readConfiguredBase() || 'http://localhost:8080',
     accessToken: null, // только в памяти — не в localStorage (XSS)
   };
 

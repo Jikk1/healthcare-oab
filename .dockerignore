@@ -1,0 +1,14 @@
+# Frontend image build context — keep it to static assets only.
+backend/
+node_modules/
+.git/
+.github/
+.vscode/
+.claude/
+*.md
+*.pptx
+.env
+.env.*
+Dockerfile
+*.Dockerfile
+docker-compose.yml

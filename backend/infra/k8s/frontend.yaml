@@ -1,0 +1,112 @@
+# ============================================================
+# HealthCareOAB+ frontend (static nginx) — Kubernetes manifest
+# Apply after the API manifest (deployment.yaml).
+# Image built from frontend.Dockerfile at the repo root.
+# ============================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: oab-web-config
+  namespace: healthcare-oab
+data:
+  # Browser-facing API origin. Must match the API ingress host and the
+  # API's CORS_ORIGINS / COOKIE_DOMAIN settings.
+  API_BASE: "https://api.healthcare-oab.example"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oab-web
+  namespace: healthcare-oab
+  labels:
+    app: oab-web
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: oab-web
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: oab-web
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        fsGroup: 101
+      containers:
+        - name: web
+          image: ghcr.io/healthcare-oab/web:latest
+          ports:
+            - containerPort: 8081
+          env:
+            - name: API_BASE
+              valueFrom:
+                configMapKeyRef:
+                  name: oab-web-config
+                  key: API_BASE
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "250m"
+              memory: "128Mi"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8081
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8081
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oab-web
+  namespace: healthcare-oab
+spec:
+  selector:
+    app: oab-web
+  ports:
+    - port: 80
+      targetPort: 8081
+      protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: oab-web
+  namespace: healthcare-oab
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: ["app.healthcare-oab.example"]
+      secretName: oab-web-tls
+  rules:
+    - host: app.healthcare-oab.example
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: oab-web
+                port:
+                  number: 80

@@ -4,7 +4,7 @@
   "private": true,
   "description": "HealthCareOAB+ — статический фронтенд (лендинг + дашборд врача)",
   "scripts": {
-    "start": "npx --yes serve -l 8080 .",
-    "serve": "npx --yes serve -l 8080 ."
+    "start": "npx --yes serve -l 5173 .",
+    "serve": "npx --yes serve -l 5173 ."
   }
 }

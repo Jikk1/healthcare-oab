@@ -21,14 +21,18 @@
 npm start
 ```
 
-Откроется статический сервер на <http://localhost:8080>. Перейдите туда в браузере.
+Откроется статический сервер на <http://localhost:5173>. Перейдите туда в браузере.
+
+> Порт **5173** выбран намеренно: бэкенд слушает **8080**, а `CORS_ORIGINS`
+> бэкенда по умолчанию разрешает именно `http://localhost:5173`. Так фронт и бэк
+> не конфликтуют по порту и cookie/CORS работают из коробки.
 
 **Вариант Б — любой статический сервер:**
 
 ```bash
-npx serve -l 8080 .
+npx serve -l 5173 .
 # или
-python -m http.server 8080
+python -m http.server 5173
 ```
 
 **Вариант В — просто открыть файл.** Можно дважды кликнуть `index.html`. Страница откроется, но запуск через сервер надёжнее (некоторые браузеры ограничивают `file://`).
@@ -60,7 +64,9 @@ npm run db:seed                           # тестовые данные
 npm run dev                               # API на http://localhost:8080
 ```
 
-Полный стек с мониторингом (Prometheus/Grafana/Jaeger): `docker compose up -d`.
+Полный стек с мониторингом (Prometheus/Grafana/Jaeger) **и фронтендом**: `docker compose up -d`.
+Фронтенд поднимется отдельным nginx-контейнером (`web`) на <http://localhost:8081>;
+адрес API он берёт из переменной `API_BASE` (см. `frontend.Dockerfile` и `config.js`).
 
 ### Путь Б — без Docker
 
@@ -97,8 +103,10 @@ curl http://localhost:8080/health/live
 ├── index.html / dashboard.html   # страницы
 ├── styles.css / dashboard.css    # стили
 ├── app.js / dashboard.js / charts.js   # логика фронтенда
+├── api.js / config.js            # клиент API + runtime-конфиг (адрес API)
 ├── vendor/                        # локальные Chart.js и Lenis (офлайн)
-├── package.json                   # npm start → статический сервер
+├── package.json                   # npm start → статический сервер (:5173)
+├── frontend.Dockerfile / nginx.conf / docker-entrypoint.sh  # контейнер фронта
 └── backend/                       # API (см. backend/README.md)
 ```
 
