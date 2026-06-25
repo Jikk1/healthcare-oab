@@ -24,7 +24,8 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
-    "db:reset": "prisma migrate reset --force && npm run db:seed"
+    "db:reset": "prisma migrate reset --force && npm run db:seed",
+    "smoke": "node scripts/smoke.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

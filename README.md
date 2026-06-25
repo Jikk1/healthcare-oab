@@ -82,17 +82,48 @@ npm run dev                               # API на http://localhost:8080
 
 ```bash
 cd backend
-npm test          # 27 unit-тестов
+npm test          # 38 unit-тестов
 npm run typecheck # проверка типов
+npm run smoke     # post-deploy smoke-тест против запущенного API
 curl http://localhost:8080/health/live
 ```
 
-> ⚠️ **Безопасность:** значения в `backend/.env` — это **демо-секреты** (`...change-me...`). Перед публичным деплоем обязательно сгенерируйте новые:
+---
+
+## Эксплуатация (одной командой)
+
+В корне есть `Makefile` (нужен Docker). Поднимает и проверяет весь стек:
+
+```bash
+make bootstrap   # старт → ожидание API → миграции → сид → smoke-тест
+make smoke       # post-deploy проверка (/health + логин + данные)
+make backup      # дамп БД в ./backups/oab-<timestamp>.sql.gz
+make restore FILE=backups/oab-XXXX.sql.gz
+make logs        # хвост логов API
+make down        # остановить (тома сохраняются)
+make help        # все цели
+```
+
+**Наблюдаемость** (поднимается вместе со стеком):
+- Grafana <http://localhost:3000> — авто-провижн дашборда «HealthCareOAB+ API — RED»
+  (`backend/infra/observability/dashboards/oab-api.json`).
+- Prometheus <http://localhost:9090> — алерты в `infra/observability/alerts.yml`
+  (5xx-рейт, p99-латентность, target down, всплеск ошибок аутентификации).
+- Jaeger <http://localhost:16686> — трейсы.
+
+**Прод:** в `backend/infra/k8s/` есть манифесты API (`deployment.yaml`), фронтенда
+(`frontend.yaml`) и ночного бэкапа БД (`backup-cronjob.yaml`). Smoke-тест запускайте
+как post-deploy-гейт: `SMOKE_BASE_URL=https://api.… node backend/scripts/smoke.mjs`.
+
+> ⚠️ **Безопасность:** локальный `backend/.env` уже содержит свежесгенерированные
+> случайные секреты (а не публичные демо-значения). Для **прод-деплоя** генерируйте
+> отдельные секреты и держите их в секрет-менеджере (Vault / AWS Secrets Manager),
+> а не в файле:
 > ```bash
 > openssl rand -base64 48   # для JWT_ACCESS_SECRET и JWT_REFRESH_SECRET
 > openssl rand -base64 32   # для PHI_ENCRYPTION_KEY
 > ```
-> Файл `.env` уже в `.gitignore` — не коммитьте реальные секреты.
+> Файл `.env` в `.gitignore` — реальные секреты не коммитятся.
 
 ---
 

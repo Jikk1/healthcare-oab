@@ -1,0 +1,64 @@
+# ============================================================
+# HealthCareOAB+ — nightly PostgreSQL backup
+# Dumps the database to a PVC at 02:00 UTC and prunes dumps older
+# than 14 days. For real prod, ship dumps to object storage (S3/GCS)
+# instead of a local PVC and verify restores regularly.
+# ============================================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: oab-db-backups
+  namespace: healthcare-oab
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: oab-db-backup
+  namespace: healthcare-oab
+spec:
+  schedule: "0 2 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 70 # postgres user in the alpine image
+            fsGroup: 70
+          containers:
+            - name: pg-dump
+              image: postgres:16-alpine
+              env:
+                - name: DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: oab-api-secrets
+                      key: DATABASE_URL
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+                  OUT="/backups/oab-${STAMP}.sql.gz"
+                  echo "Dumping to ${OUT}"
+                  pg_dump --no-owner --no-privileges "${DATABASE_URL}" | gzip -9 > "${OUT}"
+                  echo "Pruning dumps older than 14 days"
+                  find /backups -name 'oab-*.sql.gz' -type f -mtime +14 -delete
+                  echo "Backup complete: $(ls -lh ${OUT})"
+              volumeMounts:
+                - name: backups
+                  mountPath: /backups
+          volumes:
+            - name: backups
+              persistentVolumeClaim:
+                claimName: oab-db-backups

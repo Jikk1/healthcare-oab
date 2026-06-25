@@ -5,6 +5,9 @@ global:
   external_labels:
     monitor: healthcare-oab
 
+rule_files:
+  - /etc/prometheus/alerts.yml
+
 scrape_configs:
   - job_name: healthcare-oab-api
     metrics_path: /metrics
