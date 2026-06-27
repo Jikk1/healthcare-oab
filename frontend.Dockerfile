@@ -1,8 +1,18 @@
 # ============================================================
-# HealthCareOAB+ frontend — static nginx image (rootless)
+# HealthCareOAB+ frontend — Vite build served by rootless nginx
 #   docker build -f frontend.Dockerfile -t healthcare-oab/web .
 #   docker run -p 8081:8081 -e API_BASE=https://api.example healthcare-oab/web
 # ============================================================
+
+# ---- Stage 1: build the static bundle with Vite ----
+FROM node:20-alpine AS build
+WORKDIR /app
+COPY package.json package-lock.json* ./
+RUN npm ci || npm install
+COPY . .
+RUN npm run build
+
+# ---- Stage 2: serve the bundle ----
 FROM nginxinc/nginx-unprivileged:1.27-alpine
 
 # Runs as uid 101 (nginx) by default. Switch to root only to lay down
@@ -12,10 +22,9 @@ USER root
 # Site config (listens on :8081, see nginx.conf).
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Static assets. The backend/ tree and tooling are excluded via .dockerignore.
-COPY --chown=101:101 index.html dashboard.html predict.html login.html /usr/share/nginx/html/
-COPY --chown=101:101 *.js *.css /usr/share/nginx/html/
-COPY --chown=101:101 vendor/ /usr/share/nginx/html/vendor/
+# Built bundle. /config.js (from public/) ships inside dist and is overwritten
+# at container start by the entrypoint below.
+COPY --from=build --chown=101:101 /app/dist/ /usr/share/nginx/html/
 
 # Runtime config generator (writes config.js from $API_BASE, then execs nginx).
 COPY docker-entrypoint.sh /docker-entrypoint.hc.sh

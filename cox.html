@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0a1628" />
+  <title>Предиктивная медицина на модели Кокса — пропорциональные риски в реальном времени</title>
+  <meta name="description" content="Предиктивная медицина нового поколения на строгой модели пропорциональных рисков Кокса: персональная функция выживания, проверка допущений (Schoenfeld), C-index, интеграция через HL7 FHIR." />
+  <meta property="og:title" content="Предиктивная медицина нового поколения · модель Кокса" />
+  <meta property="og:description" content="Индивидуальный расчёт функции выживания и вероятности критических событий в реальном времени." />
+  <meta property="og:type" content="website" />
+
+  <link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%232dd4bf'/><path d='M5 22 Q14 22 16 12 T27 7' stroke='%2304121a' stroke-width='3' fill='none' stroke-linecap='round'/></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="cox.css" />
+</head>
+<body>
+
+  <!-- ===================== Навигация ===================== -->
+  <header class="nav">
+    <div class="wrap nav-row">
+      <a class="brand" href="#top">
+        <span class="mark">βλ</span>
+        <span>Cox<span style="color:var(--teal-bright)">Predict</span></span>
+      </a>
+      <nav class="nav-links">
+        <a href="#advantages">Преимущества</a>
+        <a href="#architecture">Архитектура</a>
+        <a href="#math">Математика</a>
+        <a href="index.html">Платформа ↗</a>
+      </nav>
+      <a class="btn btn-primary" href="#cta">Запросить демонстрацию</a>
+    </div>
+  </header>
+
+  <main id="top">
+
+    <!-- ===================== Hero ===================== -->
+    <section class="section hero">
+      <div class="wrap hero-grid">
+        <div>
+          <span class="eyebrow reveal"><span class="dot"></span>Cox Proportional Hazards · Survival Analysis</span>
+          <h1 class="reveal" data-d="1">Предиктивная медицина нового поколения: <span class="accent">предсказание рисков на основе модели Кокса</span></h1>
+          <p class="lead reveal" data-d="2">Переход от реактивной медицины к проактивной. Индивидуальный расчёт функции выживания и вероятности наступления критических событий в реальном времени.</p>
+          <div class="hero-cta reveal" data-d="3">
+            <a class="btn btn-primary" href="#cta">
+              Запросить демонстрацию алгоритмов
+              <svg viewBox="0 0 24 24" fill="none"><path d="M5 12h14m-6-6 6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </a>
+            <a class="btn btn-ghost" href="#math">Математический фундамент</a>
+          </div>
+          <div class="hero-trust reveal" data-d="4">
+            <div class="stat"><div class="v"><b>h₀(t)·e^βx</b></div><div class="l">Интерпретируемая модель</div></div>
+            <div class="stat"><div class="v"><b>C-index</b></div><div class="l">Контроль качества</div></div>
+            <div class="stat"><div class="v"><b>HL7 FHIR</b></div><div class="l">Интеграция в МИС</div></div>
+          </div>
+        </div>
+
+        <!-- Hero-визуал: персональная кривая выживания -->
+        <div class="hero-visual reveal" data-d="2" aria-hidden="true">
+          <div class="vh">
+            <span class="t">Персональная функция выживания S(t)</span>
+            <span class="pill">live</span>
+          </div>
+          <svg viewBox="0 0 460 300" role="img">
+            <!-- сетка -->
+            <g stroke="rgba(255,255,255,0.07)" stroke-width="1">
+              <line x1="40" y1="40" x2="40" y2="260"/>
+              <line x1="40" y1="260" x2="440" y2="260"/>
+              <line x1="40" y1="100" x2="440" y2="100" stroke-dasharray="3 6"/>
+              <line x1="40" y1="160" x2="440" y2="160" stroke-dasharray="3 6"/>
+              <line x1="40" y1="220" x2="440" y2="220" stroke-dasharray="3 6"/>
+            </g>
+            <!-- подписи осей -->
+            <g fill="#6f83a0" font-size="11" font-family="JetBrains Mono, monospace">
+              <text x="8" y="44">1.0</text>
+              <text x="14" y="164">0.5</text>
+              <text x="20" y="264">0</text>
+              <text x="60" y="278">1 мес</text>
+              <text x="200" y="278">1 год</text>
+              <text x="392" y="278">5 лет</text>
+            </g>
+            <!-- область под кривой пациента -->
+            <path d="M40,52 C120,60 170,95 230,150 C300,215 370,238 440,246 L440,260 L40,260 Z" fill="rgba(45,212,191,0.10)"/>
+            <!-- базовая популяционная кривая -->
+            <path class="curve base" d="M40,56 C140,70 210,110 280,150 C350,190 400,212 440,222"/>
+            <!-- персональная кривая (с ковариатами) -->
+            <path class="curve draw" stroke="#2dd4bf" d="M40,52 C120,60 170,95 230,150 C300,215 370,238 440,246"/>
+            <!-- маркер «5 лет» -->
+            <circle class="reveal" cx="440" cy="246" r="5" fill="#5eead4"/>
+            <line x1="392" y1="40" x2="392" y2="260" stroke="rgba(94,234,212,0.35)" stroke-dasharray="4 4"/>
+          </svg>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== Преимущества ===================== -->
+    <section class="section" id="advantages">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <span class="eyebrow"><span class="dot"></span>Почему мы</span>
+          <h2>Наше ключевое преимущество над существующими проектами</h2>
+          <p>Четыре свойства, которые отделяют строгий статистический подход от «чёрных ящиков» предиктивной аналитики в здравоохранении.</p>
+        </div>
+
+        <div class="adv-grid">
+          <article class="card reveal" data-d="1">
+            <span class="num">01</span>
+            <div class="ico">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0H5a2 2 0 0 1-2-2v-4m6 6h10a2 2 0 0 0 2-2v-4" stroke-linecap="round"/><path d="M3 9h18M3 15h18" stroke-linecap="round"/></svg>
+            </div>
+            <h3>Истинная математическая глубина, а не «чёрный ящик»</h3>
+            <p>В отличие от непрозрачных нейросетей, мы используем строгую модель Кокса. <b>Каждый коэффициент β имеет клиническую интерпретацию</b> — врач видит не просто «высокий риск», а логарифм отношения рисков для каждого фактора (возраст, биомаркер, генетика).</p>
+          </article>
+
+          <article class="card reveal" data-d="2">
+            <span class="num">02</span>
+            <div class="ico">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12h4l2 6 4-14 2 8h6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <h3>Динамическая проверка пропорциональности рисков</h3>
+            <p>Главная проблема 99% решений — игнорирование нарушения допущений модели. Наш алгоритм <b>автоматически тестирует гипотезу пропорциональности (Schoenfeld residuals)</b> для каждой ковариаты и при нарушениях предлагает стратификацию или ввод время-зависимых коэффициентов.</p>
+          </article>
+
+          <article class="card reveal" data-d="3">
+            <span class="num">03</span>
+            <div class="ico">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4v16h16" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 7c6 0 5 9 9 9s4-7 7-7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <h3>Не просто прогноз, а кривая выживания</h3>
+            <p>Мы не выдаём бинарный вердикт. Мы строим <b>персонализированную кривую Каплана-Мейера с учётом ковариат</b>, позволяя оценить риск во временной динамике: 1 месяц, 1 год, 5 лет.</p>
+          </article>
+
+          <article class="card reveal" data-d="4">
+            <span class="num">04</span>
+            <div class="ico">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><path d="M10 6.5h4M6.5 10v4M17.5 10v4M10 17.5h4" stroke-linecap="round"/></svg>
+            </div>
+            <h3>Масштабируемость и «бесшовная» интеграция</h3>
+            <p>Микросервисная архитектура позволяет встраивать наши предиктивные расчёты напрямую <b>в МИС/ЕГИСУ через HL7 FHIR API</b>, не нарушая текущие процессы клиники.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== Архитектура ===================== -->
+    <section class="section" id="architecture">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <span class="eyebrow"><span class="dot"></span>Pipeline</span>
+          <h2>Архитектура и структура проекта</h2>
+          <p>Сквозной путь данных: от сырых записей EHR до подсветки модифицируемых факторов риска на дашборде врача.</p>
+        </div>
+
+        <div class="arch">
+          <div class="arch-step reveal" data-d="1">
+            <div class="box">
+              <div class="stage">1</div>
+              <div class="en">Data Ingestion Layer</div>
+              <h4>Сбор данных</h4>
+              <p>Коннекторы к EHR, OMOP CDM хранилищам и лабораторным системам. Валидация и нормализация сырых данных.</p>
+            </div>
+          </div>
+
+          <div class="arch-step reveal" data-d="2">
+            <div class="box">
+              <div class="stage">2</div>
+              <div class="en">Covariate Engineering Core</div>
+              <h4>Ядро обработки</h4>
+              <p>Расчёт и отбор ковариат. Обработка цензурированных данных. Формирование матриц «время-событие-статус».</p>
+            </div>
+          </div>
+
+          <div class="arch-step reveal" data-d="3">
+            <div class="box">
+              <div class="stage">3</div>
+              <div class="en">Cox Computational Engine</div>
+              <h4>Расчётный модуль</h4>
+              <ul>
+                <li>Оценка базовой кумулятивной функции опасности (Breslow estimator).</li>
+                <li>Экспоненциальная линейная комбинация предикторов.</li>
+                <li>Визуализация логарифма отношения шансов для врача.</li>
+              </ul>
+              <div class="arch-formula">h(t|x) = h₀(t) · e<sup>Σ βᵢxᵢ</sup></div>
+            </div>
+          </div>
+
+          <div class="arch-step reveal" data-d="4">
+            <div class="box">
+              <div class="stage">4</div>
+              <div class="en">Validation &amp; Monitoring</div>
+              <h4>Контроль качества</h4>
+              <p>Автоматический расчёт C-index (индекс конкордантности) и калибровочных кривых для предотвращения деградации модели.</p>
+            </div>
+          </div>
+
+          <div class="arch-step reveal" data-d="4">
+            <div class="box">
+              <div class="stage">5</div>
+              <div class="en">Clinical Decision Support UI</div>
+              <h4>Интерфейс врача</h4>
+              <p>«Умный» дашборд, подсвечивающий модифицируемые факторы риска, при воздействии на которые прогноз выживаемости пациента улучшается наиболее значимо.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== Математический фундамент ===================== -->
+    <section class="section" id="math">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <span class="eyebrow"><span class="dot"></span>Foundation</span>
+          <h2>Математический фундамент</h2>
+          <p>Принцип работы модели — в строгом академическом изложении.</p>
+        </div>
+
+        <blockquote class="math-quote reveal">
+          <p class="qh">Модель пропорциональных рисков Кокса</p>
+          <p class="principle"><b style="color:var(--text)">Принцип.</b> Время до наступления события <span class="var" style="font-family:var(--font-math)">t</span> зависит от набора ковариат. Алгоритм основан на умножении базовой функции опасности <span class="var" style="font-family:var(--font-math);color:var(--teal-bright)">h₀(t)</span> на экспоненциальную функцию линейной комбинации предикторов.</p>
+
+          <div class="formula-block">
+            <span class="var">h</span>(<span class="var">t</span>|<span class="var">x</span>) = <span class="teal var">h</span><sub class="teal">0</sub><span class="teal">(<span class="var">t</span>)</span> · <span class="var">e</span><sup><span class="var">β</span><sub>1</sub><span class="var">x</span><sub>1</sub> + … + <span class="var">β</span><sub>k</sub><span class="var">x</span><sub>k</sub></sup>
+          </div>
+
+          <div class="math-list">
+            <div class="item">
+              <span class="key">S</span>
+              <span class="txt"><b>Функция выживания.</b> Оценка <span class="ml">h(t|x) = h₀(t) · e^(β₁x₁ + … + β_k x_k)</span> описывает мгновенный риск события в момент <span class="ml">t</span> при индивидуальном профиле ковариат <span class="ml">x</span>.</span>
+            </div>
+            <div class="item">
+              <span class="key">β</span>
+              <span class="txt"><b>Интерпретация влияния.</b> Коэффициенты <span class="ml">β</span> показывают логарифмы отношений рисков (Hazard Ratio). Если <span class="ml">β &gt; 0</span> — фактор увеличивает риск; если <span class="ml">β &lt; 0</span> — снижает.</span>
+            </div>
+            <div class="item">
+              <span class="key">H</span>
+              <span class="txt"><b>Контроль допущений.</b> Строгая проверка гипотезы о постоянстве отношения рисков во времени — необходимое условие валидности прогноза.</span>
+            </div>
+          </div>
+        </blockquote>
+      </div>
+    </section>
+
+    <!-- ===================== CTA ===================== -->
+    <section class="section" id="cta" style="padding-top:0">
+      <div class="wrap">
+        <div class="math-quote reveal" style="text-align:center;border-left:none;display:flex;flex-direction:column;align-items:center;gap:18px">
+          <span class="eyebrow"><span class="dot"></span>Demo</span>
+          <h2 style="font-size:clamp(1.6rem,3.4vw,2.4rem);letter-spacing:-0.025em;margin:0;max-width:22ch">Посмотрите, как алгоритм считает риск на ваших данных</h2>
+          <p style="color:var(--text-2);max-width:60ch;margin:0">Запросите демонстрацию расчётного модуля Кокса с проверкой пропорциональности рисков и построением персональной кривой выживания.</p>
+          <a class="btn btn-primary" href="cox-demo.html">
+            Запросить демонстрацию алгоритмов
+            <svg viewBox="0 0 24 24" fill="none"><path d="M5 12h14m-6-6 6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ===================== Футер ===================== -->
+  <footer class="footer">
+    <div class="wrap footer-inner">
+      <p class="disclaimer">Основано на доказательной математической статистике и вычислительной онкологии. <b>Не является врачебным решением, но является лучшим ассистентом для его принятия.</b></p>
+      <span class="copy">© 2026 CoxPredict · Cox Proportional Hazards</span>
+    </div>
+  </footer>
+
+  <script type="module">
+    // Появление блоков при скролле — на getBoundingClientRect (без зависимости от
+    // IntersectionObserver, который не везде надёжно срабатывает). Контент виден
+    // по умолчанию; анимацию включаем, только если уважение к motion позволяет.
+    const root = document.documentElement;
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const els = [...document.querySelectorAll('.reveal')];
+
+    if (!reduce) {
+      root.classList.add('js'); // переводит .reveal в скрытое состояние (см. CSS)
+      let raf = 0;
+      const reveal = () => {
+        raf = 0;
+        const vh = window.innerHeight || 800;
+        for (const el of els) {
+          if (el.classList.contains('in')) continue;
+          const r = el.getBoundingClientRect();
+          if (r.top < vh * 0.92 && r.bottom > 0) el.classList.add('in');
+        }
+      };
+      const onScroll = () => { if (!raf) raf = requestAnimationFrame(reveal); };
+      reveal(); // первый проход — показать всё, что уже в зоне видимости
+      window.addEventListener('scroll', onScroll, { passive: true });
+      window.addEventListener('resize', onScroll);
+      window.addEventListener('load', reveal);
+      setTimeout(reveal, 350); // после подгрузки шрифтов/раскладки
+      // Страховка: что бы ни случилось — через 2.5 с показываем всё.
+      setTimeout(() => els.forEach((el) => el.classList.add('in')), 2500);
+    }
+  </script>
+</body>
+</html>

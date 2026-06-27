@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HealthCareOAB+ — Ввод анализов и прогноз рисков</title>
+  <meta name="description" content="Введите свои лабораторные показатели (общий анализ крови, биохимия, липиды) и получите персональный прогноз рисков заболеваний на основе движка OmniRisk." />
+  <!-- Адрес API для серверного режима вычислений. -->
+  <meta name="hc-api-base" content="http://localhost:8080" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="dashboard.css" />
+  <style>
+    /* ── Общий каркас (совпадает с predict.html) ── */
+    .or-wrap { max-width: 1400px; margin: 0 auto; padding: 24px clamp(14px, 3vw, 36px) 80px; }
+    .or-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin: 8px 0 22px; }
+    .or-head h1 { font-family: var(--font-display, 'Space Grotesk'); font-size: clamp(1.5rem, 3vw, 2.1rem); letter-spacing: -0.02em; margin: 0; }
+    .or-head .sub { color: var(--text-3); font-size: 13px; margin-top: 4px; max-width: 70ch; }
+    .or-nav { display: flex; gap: 8px; }
+    .or-grid { display: grid; grid-template-columns: 380px 1fr; gap: 20px; align-items: start; }
+    @media (max-width: 1000px) { .or-grid { grid-template-columns: 1fr; } }
+    .or-panel { background: var(--surface-1, rgba(255,255,255,0.02)); border: 1px solid var(--border); border-radius: 16px; padding: 18px; }
+    .or-panel h3 { margin: 0 0 14px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); font-weight: 600; }
+    .or-field { margin-bottom: 14px; }
+    .or-field label { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--text-2); margin-bottom: 6px; }
+    .or-seg { display: flex; gap: 6px; flex-wrap: wrap; }
+    .or-seg button, .or-chip { font: inherit; font-size: 12px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: transparent; color: var(--text-2); cursor: pointer; transition: .15s; }
+    .or-seg button.active, .or-chip.active { background: var(--cyan, #00E5FF); color: #04121A; border-color: transparent; font-weight: 600; }
+    .or-accordion { border-top: 1px solid var(--border); margin-top: 6px; }
+    .or-accordion > summary { cursor: pointer; padding: 11px 2px; font-size: 13px; font-weight: 500; list-style: none; display: flex; justify-content: space-between; align-items: center; }
+    .or-accordion > summary::-webkit-details-marker { display: none; }
+    .or-accordion > summary::after { content: '+'; color: var(--text-3); }
+    .or-accordion[open] > summary::after { content: '−'; }
+    .or-accordion .grp-count { font-family: var(--font-mono); font-size: 10.5px; color: var(--text-3); margin-left: auto; margin-right: 10px; }
+    .or-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; margin-bottom: 20px; }
+    .or-kpi { background: var(--surface-1, rgba(255,255,255,0.02)); border: 1px solid var(--border); border-radius: 14px; padding: 16px; }
+    .or-kpi .v { font-family: var(--font-display, 'Space Grotesk'); font-size: clamp(1.6rem, 3vw, 2.2rem); font-weight: 700; letter-spacing: -0.02em; line-height: 1; }
+    .or-kpi .l { font-size: 11.5px; color: var(--text-3); margin-top: 8px; text-transform: uppercase; letter-spacing: 0.06em; }
+    .or-kpi .hint { font-size: 11px; color: var(--text-3); margin-top: 4px; font-family: var(--font-mono); }
+    .or-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media (max-width: 1200px) { .or-cards { grid-template-columns: 1fr; } }
+    .or-card { background: var(--surface-1, rgba(255,255,255,0.02)); border: 1px solid var(--border); border-radius: 16px; padding: 18px; }
+    .or-card h2 { font-size: 15px; margin: 0 0 4px; }
+    .or-card .cap { font-size: 12px; color: var(--text-3); margin-bottom: 14px; }
+    .or-chart { position: relative; height: 280px; }
+    .or-disease { display: grid; grid-template-columns: 1fr auto; gap: 10px 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); }
+    .or-disease:last-child { border-bottom: none; }
+    .or-disease .nm { font-size: 13.5px; }
+    .or-disease .meta { font-size: 11px; color: var(--text-3); font-family: var(--font-mono); margin-top: 2px; }
+    .or-bar { grid-column: 1 / -1; height: 7px; border-radius: 6px; background: rgba(255,255,255,0.06); overflow: hidden; }
+    .or-bar > i { display: block; height: 100%; border-radius: 6px; transition: width .5s ease; }
+    .or-prob { font-family: var(--font-mono); font-weight: 700; font-size: 15px; text-align: right; }
+    .or-note { font-size: 11.5px; color: var(--text-3); line-height: 1.5; margin-top: 12px; padding: 10px 12px; border: 1px dashed var(--border); border-radius: 10px; }
+    .or-full { grid-column: 1 / -1; }
+
+    /* ── Специфика страницы анализов ── */
+    .lab-field { display: grid; grid-template-columns: 1fr 118px; gap: 8px 10px; align-items: center; margin-bottom: 10px; }
+    .lab-field .lab-meta { min-width: 0; }
+    .lab-field .lab-name { font-size: 12.8px; color: var(--text); }
+    .lab-field .lab-ref { font-size: 10.5px; color: var(--text-3); font-family: var(--font-mono); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .lab-input { position: relative; display: flex; align-items: center; }
+    .lab-input input { width: 100%; font: inherit; font-size: 13px; font-family: var(--font-mono); background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 9px; color: var(--text); padding: 7px 38px 7px 10px; transition: .15s; -moz-appearance: textfield; }
+    .lab-input input::-webkit-outer-spin-button, .lab-input input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    .lab-input input:focus { outline: none; border-color: var(--cyan, #00E5FF); background: rgba(0,229,255,0.05); }
+    .lab-input input::placeholder { color: var(--text-3); opacity: .5; }
+    .lab-input .lab-unit { position: absolute; right: 9px; font-size: 10px; color: var(--text-3); pointer-events: none; font-family: var(--font-mono); max-width: 30px; text-align: right; }
+    .lab-input.s-ok input { border-color: rgba(74,255,170,0.5); }
+    .lab-input.s-warn input { border-color: rgba(255,181,71,0.55); }
+    .lab-input.s-bad input { border-color: rgba(255,94,126,0.6); }
+    .lab-actions { display: flex; gap: 8px; margin: 14px 0 4px; flex-wrap: wrap; }
+    .lab-actions .btn { flex: 1; }
+    .comp-wrap { margin: 16px 0 4px; }
+    .comp-wrap .comp-top { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--text-2); margin-bottom: 6px; }
+    .comp-wrap .comp-top b { font-family: var(--font-mono); color: var(--cyan, #00E5FF); }
+    .comp-bar { height: 8px; border-radius: 6px; background: rgba(255,255,255,0.07); overflow: hidden; }
+    .comp-bar > i { display: block; height: 100%; border-radius: 6px; background: linear-gradient(90deg, var(--violet, #A78BFA), var(--cyan, #00E5FF)); transition: width .5s ease; }
+    .flags { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+    .flag { font-size: 11.5px; font-family: var(--font-mono); padding: 6px 11px; border-radius: 999px; border: 1px solid; display: inline-flex; gap: 6px; align-items: center; }
+    .flags .flag-ok { color: var(--mint, #4AFFAA); border-color: rgba(74,255,170,0.35); background: rgba(74,255,170,0.06); }
+    .driver-row { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--border); }
+    .driver-row:last-child { border-bottom: none; }
+    .driver-row .d-nm { font-size: 13px; }
+    .driver-row .d-sub { font-size: 11px; color: var(--text-3); font-family: var(--font-mono); }
+    .driver-row .d-val { font-family: var(--font-mono); font-weight: 600; text-align: right; font-size: 13px; }
+    .empty-state { color: var(--text-3); font-size: 13px; padding: 40px 10px; text-align: center; line-height: 1.6; }
+  </style>
+</head>
+<body>
+<div class="or-wrap">
+  <header class="or-head">
+    <div>
+      <h1>Анализы → прогноз рисков</h1>
+      <div class="sub">Введите свои показатели (общий анализ крови, биохимия, липиды, витальные). Чем больше данных — тем уже доверительный интервал прогноза. Пустые поля просто не учитываются. <b>Демо</b>: по умолчанию расчёт идёт в браузере, данные никуда не передаются.</div>
+    </div>
+    <nav class="or-nav">
+      <a href="index.html" class="btn btn-outline btn-sm">← На главную</a>
+      <a href="cox.html" class="btn btn-outline btn-sm">Модель Кокса</a>
+      <a href="predict.html" class="btn btn-outline btn-sm">OmniRisk (слайдеры)</a>
+      <a href="dashboard.html" class="btn btn-outline btn-sm">Дашборд врача</a>
+    </nav>
+  </header>
+
+  <div class="or-grid">
+    <!-- ===== Ввод анализов ===== -->
+    <aside class="or-panel" id="inputPanel">
+      <h3>Мои показатели</h3>
+
+      <div class="or-field">
+        <label>Источник вычислений <span id="computeHint" style="color:var(--text-3);font-weight:400"></span></label>
+        <div class="or-seg" id="computeSource">
+          <button data-src="client" class="active">Браузер</button>
+          <button data-src="server">Сервер API</button>
+        </div>
+      </div>
+
+      <div class="lab-field">
+        <div class="lab-meta"><div class="lab-name">Возраст</div><div class="lab-ref">полных лет</div></div>
+        <div class="lab-input"><input type="number" id="age" min="1" max="120" step="1" value="45" /><span class="lab-unit">лет</span></div>
+      </div>
+      <div class="or-field">
+        <label>Пол <span style="color:var(--text-3);font-weight:400">влияет на нормы Hb, HDL и т.д.</span></label>
+        <div class="or-seg" id="sex">
+          <button data-sex="MALE" class="active">Муж</button>
+          <button data-sex="FEMALE">Жен</button>
+          <button data-sex="OTHER">Другое</button>
+        </div>
+      </div>
+
+      <div id="groups"></div>
+
+      <div class="or-field" style="margin-top:14px">
+        <label>Курение</label>
+        <div class="or-seg" id="smoke">
+          <button data-smoke="NEVER" class="active">Никогда</button>
+          <button data-smoke="FORMER">В прошлом</button>
+          <button data-smoke="CURRENT">Курит</button>
+        </div>
+      </div>
+
+      <div class="comp-wrap">
+        <div class="comp-top"><span>Полнота данных</span><span><b id="compPct">0%</b></span></div>
+        <div class="comp-bar"><i id="compBar" style="width:0%"></i></div>
+      </div>
+
+      <div class="lab-actions">
+        <button class="btn btn-outline btn-sm" id="loadBtn" type="button">Загрузить JSON</button>
+        <button class="btn btn-outline btn-sm" id="saveBtn" type="button">Сохранить JSON</button>
+        <button class="btn btn-outline btn-sm" id="clearBtn" type="button">Очистить</button>
+      </div>
+      <input type="file" id="fileInput" accept="application/json" hidden />
+
+      <button class="btn btn-primary" id="calcBtn" type="button" style="width:100%;margin-top:10px">Рассчитать прогноз</button>
+
+      <!-- Врачебный режим: сохранить введённые показатели как ассессмент пациента -->
+      <div id="doctorBox" hidden style="margin-top:16px;border-top:1px solid var(--border);padding-top:16px">
+        <label style="display:flex;justify-content:space-between;font-size:12.5px;color:var(--text-2);margin-bottom:6px">
+          Врачебный режим · сохранить в карту
+          <span id="doctorHint" style="color:var(--mint);font-weight:400;font-family:var(--font-mono);font-size:11px"></span>
+        </label>
+        <select id="patientSelect" style="width:100%;font:inherit;font-size:13px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:9px;color:var(--text);padding:8px 10px;margin-bottom:10px"></select>
+        <button class="btn btn-primary" id="assessBtn" type="button" style="width:100%">Сохранить ассессмент в карту</button>
+        <div id="assessResult" style="margin-top:10px;font-size:12px;line-height:1.5"></div>
+      </div>
+      <div id="doctorLoginHint" hidden style="margin-top:16px;border-top:1px solid var(--border);padding-top:16px;font-size:12px;color:var(--text-3)">
+        Вы врач? <a href="login.html?redirect=labs.html" style="color:var(--cyan)">Войдите</a>, чтобы сохранять показатели в карту пациента.
+      </div>
+
+      <div class="or-note">Инструмент поддержки решений, не диагностическое устройство и не замена врача. Коэффициенты иллюстративные. Введённые в браузерном режиме данные не покидают устройство.</div>
+    </aside>
+
+    <!-- ===== Результаты ===== -->
+    <main>
+      <div class="flags" id="flags"></div>
+      <div class="or-kpis" id="kpis"></div>
+
+      <div class="or-cards">
+        <section class="or-card or-full">
+          <h2>Прогноз по заболеваниям <span id="horizonLabel" style="color:var(--cyan)"></span></h2>
+          <div class="cap">Вероятность дебюта на выбранном горизонте. Выберите горизонт:</div>
+          <div class="or-seg" id="horizons" style="margin-bottom:14px">
+            <button data-h="1">1 год</button>
+            <button data-h="3">3 года</button>
+            <button data-h="5">5 лет</button>
+            <button data-h="10" class="active">10 лет</button>
+            <button data-h="20">20 лет</button>
+            <button data-h="lifetime">Пожизненно</button>
+          </div>
+          <div class="or-seg" id="catFilter" style="margin-bottom:14px"></div>
+          <div id="diseaseList"></div>
+        </section>
+
+        <section class="or-card">
+          <h2>Цифровой двойник · системы организма</h2>
+          <div class="cap">Индекс здоровья систем сейчас (0–100, выше — лучше)</div>
+          <div class="or-chart"><canvas id="twinRadar"></canvas></div>
+        </section>
+
+        <section class="or-card">
+          <h2>Что сильнее всего влияет <span id="driverDisease" style="color:var(--cyan)"></span></h2>
+          <div class="cap">Главные модифицируемые факторы вашего ведущего риска</div>
+          <div id="drivers"></div>
+        </section>
+
+        <section class="or-card or-full" style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+          <div>
+            <h2 style="margin-bottom:6px">Хотите смоделировать «что если»?</h2>
+            <div class="cap" style="margin:0">Откройте детальный разбор с SHAP-объяснением и сценарным вмешательством в OmniRisk.</div>
+          </div>
+          <a href="predict.html" class="btn btn-primary btn-sm">Детальный разбор →</a>
+        </section>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script src="/config.js"></script>
+<script type="module">import Chart from 'chart.js/auto'; window.Chart = Chart;</script>
+<script type="module" src="/api.js"></script>
+<script type="module" src="/omnirisk.js"></script>
+<script type="module" src="/labs.js"></script>
+</body>
+</html>

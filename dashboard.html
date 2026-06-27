@@ -7,8 +7,6 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <!-- Chart.js served locally so the dashboard renders offline -->
-  <script src="vendor/chart.umd.min.js"></script>
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="dashboard.css" />
 </head>
@@ -65,6 +63,18 @@
         <div class="nav-item" onclick="switchPage('population')">
           <span class="nav-icon">🏥</span>
           <span class="nav-label">Когорты</span>
+        </div>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-group-label">Организация</div>
+        <div class="nav-item" onclick="switchPage('billing')">
+          <span class="nav-icon">💳</span>
+          <span class="nav-label">Биллинг</span>
+        </div>
+        <div class="nav-item" onclick="switchPage('audit')">
+          <span class="nav-icon">🛡️</span>
+          <span class="nav-label">Аудит-журнал</span>
         </div>
         <div class="nav-item" onclick="window.location.href='index.html'">
           <span class="nav-icon">🌐</span>
@@ -229,8 +239,8 @@
         <div class="panel-card-header">
           <div class="panel-card-title">Список пациентов</div>
           <div style="display:flex;gap:8px">
-            <button class="btn btn-outline btn-sm">↓ Экспорт</button>
-            <button class="btn btn-primary btn-sm">+ Добавить</button>
+            <button class="btn btn-outline btn-sm" onclick="exportPatients()">↓ Экспорт</button>
+            <button class="btn btn-primary btn-sm" id="addPatientBtn" onclick="openPatientModal('create')">+ Добавить</button>
           </div>
         </div>
         <div class="patient-list-controls">
@@ -273,12 +283,12 @@
           <div class="patient-info-card" style="margin-bottom:16px">
             <div class="patient-avatar-lg" id="profileAvatar">МК</div>
             <div class="patient-full-name" id="profileName">Морозов Владимир К.</div>
-            <div class="patient-meta">
+            <div class="patient-meta" id="profileMeta">
               Муж. · 58 лет · ID: P-00142<br>
               Кардиолог: д.м.н. А. Степанова<br>
               Последний визит: 15.01.2025
             </div>
-            <div class="bio-metrics">
+            <div class="bio-metrics" id="profileMetrics">
               <div class="bio-metric-row">
                 <span class="bio-metric-label">АД (систолическое)</span>
                 <span class="bio-metric-value" style="color:var(--rose)">158 мм рт.ст.</span>
@@ -326,8 +336,8 @@
                 <div class="bio-age-unit">лет</div>
               </div>
             </div>
-            <div class="bio-age-delta" style="color:var(--amber)">+6 лет к хронологическому</div>
-            <div class="bio-age-label">Хронологический: 58 лет</div>
+            <div class="bio-age-delta" id="bioAgeDelta" style="color:var(--amber)">+6 лет к хронологическому</div>
+            <div class="bio-age-label" id="bioAgeChrono">Хронологический: 58 лет</div>
           </div>
         </div>
 
@@ -336,7 +346,7 @@
           <div class="panel-card">
             <div class="panel-card-header">
               <div class="panel-card-title">Радарный профиль рисков <span>по системам организма</span></div>
-              <span class="risk-badge risk-critical">Критический</span>
+              <span class="risk-badge risk-critical" id="profileBadge">Критический</span>
             </div>
             <div class="panel-card-body">
               <div class="chart-container" style="height:260px">
@@ -364,7 +374,7 @@
               <div class="shap-chart" id="shapChart"></div>
               <div style="margin-top:12px;padding:10px 12px;background:var(--bg-elevated);border-radius:8px;display:flex;justify-content:space-between;font-size:12px">
                 <span style="color:var(--text-tertiary)">Итоговый риск ИМ (10л)</span>
-                <span style="font-family:var(--font-mono);font-weight:700;color:var(--rose)">34.2% <span style="color:var(--text-tertiary);font-weight:400">[28.1–40.6]</span></span>
+                <span id="profileFinalRisk" style="font-family:var(--font-mono);font-weight:700;color:var(--rose)">34.2% <span style="color:var(--text-tertiary);font-weight:400">[28.1–40.6]</span></span>
               </div>
             </div>
           </div>
@@ -575,14 +585,56 @@
       </div>
     </div>
 
+    <!-- ─── БИЛЛИНГ ───────────────────────────────────────────────── -->
+    <div class="page-panel" id="page-billing">
+      <div class="panel-card" style="margin-bottom:16px">
+        <div class="panel-card-header">
+          <div class="panel-card-title">Текущая подписка <span>тарифный план организации</span></div>
+        </div>
+        <div class="panel-card-body" id="billingSubscription">
+          <div style="color:var(--text-3);font-size:13px">Войдите, чтобы увидеть данные подписки.</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div class="panel-card">
+          <div class="panel-card-header"><div class="panel-card-title">Доступные тарифы</div></div>
+          <div class="panel-card-body" id="billingPlans"></div>
+        </div>
+        <div class="panel-card">
+          <div class="panel-card-header"><div class="panel-card-title">История счетов</div></div>
+          <div class="panel-card-body" id="billingInvoices"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── АУДИТ-ЖУРНАЛ ──────────────────────────────────────────── -->
+    <div class="page-panel" id="page-audit">
+      <div class="panel-card">
+        <div class="panel-card-header">
+          <div class="panel-card-title">Аудит-журнал <span>неизменяемая цепочка событий (PHI-доступ)</span></div>
+          <button class="btn btn-outline btn-sm" id="auditVerifyBtn" onclick="verifyAudit()">Проверить целостность</button>
+        </div>
+        <div class="panel-card-body">
+          <div id="auditVerifyResult" style="margin-bottom:12px"></div>
+          <div style="overflow-x:auto">
+            <table class="patient-table" id="auditTable">
+              <thead><tr><th>Время</th><th>Действие</th><th>Ресурс</th><th>Актор</th><th>IP</th></tr></thead>
+              <tbody id="auditTableBody"><tr><td colspan="5" style="text-align:center;padding:40px;color:var(--text-3)">Войдите как OWNER/ADMIN для просмотра журнала.</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div><!-- /main-content -->
 </div><!-- /app-layout -->
 
 <div id="toastContainerDB"></div>
 
-<script src="config.js"></script>
-<script src="api.js"></script>
-<script src="charts.js"></script>
-<script src="dashboard.js"></script>
+<script src="/config.js"></script>
+<script type="module">import Chart from 'chart.js/auto'; window.Chart = Chart;</script>
+<script type="module" src="/api.js"></script>
+<script type="module" src="/charts.js"></script>
+<script type="module" src="/dashboard.js"></script>
 </body>
 </html>

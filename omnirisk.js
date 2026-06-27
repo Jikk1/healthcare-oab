@@ -10,9 +10,9 @@
 
   /* ---------- Каталог болезней (синхронно с disease-catalog.ts) ---------- */
   const DISEASES = [
-    { icd11:'BA40', id:'ihd', name:'Ишемическая болезнь сердца', category:'CARDIOVASCULAR', lifetimeBaseline:32, baselineOnsetAge:64, sexFactor:1.4, minAge:30, weights:{ age:4.2, bloodPressure:2.4, lipids:2.8, smoking:2.6, glycemia:1.4, inflammation:1.2, genomicLoad:1.6, inactivity:0.9, adiposity:0.7, autonomic:0.6 } },
-    { icd11:'8B20', id:'stroke', name:'Инсульт', category:'CARDIOVASCULAR', lifetimeBaseline:18, baselineOnsetAge:70, sexFactor:1.1, minAge:35, weights:{ age:4.0, bloodPressure:3.2, smoking:1.6, glycemia:1.2, lipids:1.0, genomicLoad:1.2, inflammation:0.8 } },
-    { icd11:'BD10', id:'hf', name:'Хроническая сердечная недостаточность', category:'CARDIOVASCULAR', lifetimeBaseline:20, baselineOnsetAge:72, sexFactor:1.1, minAge:40, weights:{ age:3.6, bloodPressure:2.0, glycemia:1.4, adiposity:1.0, inflammation:1.0, autonomic:1.2 } },
+    { icd11:'BA40', id:'ihd', name:'Ишемическая болезнь сердца', category:'CARDIOVASCULAR', lifetimeBaseline:32, baselineOnsetAge:64, sexFactor:1.4, minAge:30, weights:{ age:4.2, bloodPressure:2.4, lipids:2.8, smoking:2.6, glycemia:1.4, inflammation:1.2, genomicLoad:1.6, inactivity:0.9, adiposity:0.7, autonomic:0.6, cardiac:1.2 } },
+    { icd11:'8B20', id:'stroke', name:'Инсульт', category:'CARDIOVASCULAR', lifetimeBaseline:18, baselineOnsetAge:70, sexFactor:1.1, minAge:35, weights:{ age:4.0, bloodPressure:3.2, smoking:1.6, glycemia:1.2, lipids:1.0, genomicLoad:1.2, inflammation:0.8, cardiac:0.6 } },
+    { icd11:'BD10', id:'hf', name:'Хроническая сердечная недостаточность', category:'CARDIOVASCULAR', lifetimeBaseline:20, baselineOnsetAge:72, sexFactor:1.1, minAge:40, weights:{ age:3.6, bloodPressure:2.0, glycemia:1.4, adiposity:1.0, inflammation:1.0, autonomic:1.2, cardiac:2.4 } },
     { icd11:'BA00.Z', id:'htn', name:'Артериальная гипертензия (субклин.)', category:'CARDIOVASCULAR', lifetimeBaseline:55, baselineOnsetAge:52, sexFactor:1.05, stage:'subclinical', minAge:25, weights:{ age:3.0, bloodPressure:4.0, adiposity:1.6, alcohol:1.0, stress:0.8, social:0.5 } },
     { icd11:'2C25', id:'lung_ca', name:'Рак лёгкого', category:'ONCOLOGY', lifetimeBaseline:6, baselineOnsetAge:68, sexFactor:1.3, minAge:40, weights:{ age:3.4, smoking:4.6, environment:1.6, genomicLoad:1.2, inflammation:0.8 } },
     { icd11:'2C61', id:'breast_ca', name:'Рак молочной железы', category:'ONCOLOGY', lifetimeBaseline:12, baselineOnsetAge:62, sexFactor:0.1, minAge:30, weights:{ age:3.0, genomicLoad:2.8, adiposity:1.0, alcohol:1.0 } },
@@ -36,7 +36,7 @@
     { icd11:'GB61', id:'ckd', name:'Хроническая болезнь почек', category:'RENAL', lifetimeBaseline:14, baselineOnsetAge:64, sexFactor:1.0, minAge:30, weights:{ renal:4.2, bloodPressure:2.0, glycemia:2.2, age:1.8, inflammation:0.8 } },
     { icd11:'9B10', id:'amd', name:'Возрастная макулодистрофия', category:'OPHTHALMIC', lifetimeBaseline:9, baselineOnsetAge:72, sexFactor:0.9, minAge:50, weights:{ age:3.8, smoking:2.0, genomicLoad:1.8, lipids:0.8 } },
     { icd11:'2C30', id:'melanoma', name:'Меланома кожи', category:'DERMATOLOGIC', lifetimeBaseline:2, baselineOnsetAge:58, sexFactor:1.1, minAge:20, weights:{ environment:2.4, genomicLoad:2.0, age:1.6, immune:0.8 } },
-    { icd11:'3A00', id:'anemia', name:'Хроническая анемия', category:'HEMATOLOGIC', lifetimeBaseline:12, baselineOnsetAge:55, sexFactor:0.7, minAge:12, weights:{ immune:1.2, renal:1.4, diet:1.2, inflammation:1.0, age:1.0 } },
+    { icd11:'3A00', id:'anemia', name:'Хроническая анемия', category:'HEMATOLOGIC', lifetimeBaseline:12, baselineOnsetAge:55, sexFactor:0.7, minAge:12, weights:{ hematologic:3.5, immune:1.2, renal:1.4, diet:1.2, inflammation:1.0, age:1.0 } },
     { icd11:'5C50.0', id:'fh', name:'Семейная гиперхолестеринемия', category:'RARE', lifetimeBaseline:0.4, baselineOnsetAge:40, sexFactor:1.0, minAge:5, weights:{ genomicLoad:4.0, lipids:3.0 } },
   ];
 
@@ -50,7 +50,8 @@
   const SIGNAL_LABELS = {
     age:'Возраст', bioAgeAccel:'Биол. возраст (ускорение)', bloodPressure:'Артериальное давление',
     lipids:'Липидный профиль', glycemia:'Гликемия', adiposity:'Ожирение/ИМТ', renal:'Почечная функция',
-    hepatic:'Печёночная функция', inflammation:'Хроническое воспаление', immune:'Иммунный статус',
+    hepatic:'Печёночная функция', hematologic:'Гематология (кровь/ОАК)', cardiac:'Кардиомаркеры (тропонин/BNP)',
+    inflammation:'Хроническое воспаление', immune:'Иммунный статус',
     genomicLoad:'Геномная нагрузка', microbiome:'Микробиом', smoking:'Курение', alcohol:'Алкоголь',
     inactivity:'Гиподинамия', diet:'Качество питания', sleep:'Сон', stress:'Стресс',
     environment:'Экология/среда', social:'Социальные факторы', autonomic:'Вегетативный тонус (ВСР)',
@@ -79,17 +80,36 @@
     const monoN = (p.genomic && p.genomic.monogenic && p.genomic.monogenic.length) || 0;
     const genomicLoad = clamp(prsMean * 0.6 + monoN * 0.8, -1, 3);
 
-    const inflammation = clamp(pressure(prot.crp, 1, 0.25) + pressure(prot.il6, 2, 0.12) + (micro.dysbiosisIndex || 0) / 60, -0.5, 3);
+    // Воспаление: вч-СРБ + ИЛ-6 + дисбиоз + нейтрофил-лимфоцитарное отношение (NLR) + СОЭ.
+    const nlr = (labs.neutrophils !== undefined && labs.lymphocytes !== undefined && labs.lymphocytes > 0) ? labs.neutrophils / labs.lymphocytes : undefined;
+    const inflammation = clamp(pressure(prot.crp, 1, 0.25) + pressure(prot.il6, 2, 0.12) + (micro.dysbiosisIndex || 0) / 60 + (nlr !== undefined ? clamp((nlr - 2) * 0.18, -0.2, 1.5) : 0) + pressure(labs.esr, 8, 0.03), -0.5, 3);
+
+    // Гематология: анемия (низкий Hb/Hct, с учётом пола) + аномалии тромбоцитов.
+    const hbOptimal = p.sex === 'FEMALE' ? 135 : p.sex === 'MALE' ? 150 : 140;
+    const hctOptimal = p.sex === 'FEMALE' ? 41 : p.sex === 'MALE' ? 45 : 43;
+    const anemiaPressure = (labs.hemoglobin !== undefined ? clamp((hbOptimal - labs.hemoglobin) * 0.045, -0.4, 3) : 0) + (labs.hematocrit !== undefined ? clamp((hctOptimal - labs.hematocrit) * 0.05, -0.3, 2) : 0);
+    const plateletPressure = labs.platelets !== undefined ? clamp((Math.abs(labs.platelets - 275) - 125) * 0.006, 0, 1.5) : 0;
+    const hematologic = clamp(anemiaPressure + plateletPressure * 0.5, -0.5, 3);
+
+    // Кардиомаркеры повреждения миокарда: вч-тропонин (<14 нг/л), NT-proBNP (<125 пг/мл).
+    const cardiac = clamp((prot.troponin !== undefined ? clamp((prot.troponin - 14) * 0.03, 0, 2) : 0) + (prot.ntProBnp !== undefined ? clamp((prot.ntProBnp - 125) * 0.0025, 0, 2) : 0), 0, 3);
+
+    // Артериальное давление: систолическое + диастолическое (среднее при наличии обоих).
+    const sbpP = labs.systolicBp !== undefined ? pressure(labs.systolicBp, 120, 0.03) : undefined;
+    const dbpP = labs.diastolicBp !== undefined ? pressure(labs.diastolicBp, 80, 0.045) : undefined;
+    const bloodPressure = (sbpP !== undefined && dbpP !== undefined) ? clamp((sbpP + dbpP) / 2, -1, 3) : (sbpP !== undefined ? sbpP : (dbpP !== undefined ? dbpP : 0));
 
     const signals = {
       age: clamp((p.ageYears - 30) / 22, -1, 3),
       bioAgeAccel,
-      bloodPressure: pressure(labs.systolicBp, 120, 0.03),
-      lipids: clamp(pressure(labs.ldl, 2.6, 0.5) + pressure(meta.triglycerides, 1.5, 0.25) - protLow(labs.hdl, 1.4, 0.5), -1, 3),
+      bloodPressure,
+      lipids: clamp(pressure(labs.ldl, 2.6, 0.5) + pressure(labs.totalChol, 5.0, 0.2) + pressure(meta.triglycerides, 1.5, 0.25) - protLow(labs.hdl, 1.4, 0.5), -1, 3),
       glycemia: clamp(pressure(labs.hba1c, 5.4, 0.7) + pressure(meta.glucoseFasting, 5.5, 0.4) + pressure(meta.homaIr, 2, 0.2), -1, 3),
       adiposity: pressure(labs.bmi, 23, 0.12),
-      renal: labs.egfr !== undefined ? clamp((95 - labs.egfr) * 0.03, -0.3, 3) : 0,
+      renal: clamp((labs.egfr !== undefined ? (95 - labs.egfr) * 0.03 : 0) + (meta.uricAcid !== undefined ? clamp((meta.uricAcid - 360) * 0.002, -0.2, 1) : 0), -0.3, 3),
       hepatic: clamp(pressure(labs.alt, 30, 0.03) + (p.imaging && p.imaging.hepaticSteatosis ? 0.8 : 0), -0.3, 3),
+      hematologic,
+      cardiac,
       inflammation,
       immune: clamp(pressure(labs.wbc, 6, 0.08), -0.5, 2),
       genomicLoad,
@@ -102,7 +122,7 @@
       stress: clamp(((life.stressLevel === undefined ? 3 : life.stressLevel) - 3) * 0.18, -0.5, 1.5),
       environment: clamp(pressure(env.airPm25, 5, 0.04) + (env.occupationalHazard || 0) * 0.06, -0.2, 2),
       social: clamp((soc.incomeBracket !== undefined ? (3 - soc.incomeBracket) * 0.18 : 0) + (soc.isolated ? 0.5 : 0) + (soc.educationYears !== undefined ? (12 - soc.educationYears) * 0.04 : 0), -0.6, 1.5),
-      autonomic: clamp(pressure(wear.restingHr, 60, 0.03) + (wear.hrv !== undefined ? (50 - wear.hrv) * 0.015 : 0), -0.5, 2),
+      autonomic: clamp(pressure(wear.restingHr, 60, 0.03) + (wear.hrv !== undefined ? (50 - wear.hrv) * 0.015 : 0) + (wear.spo2 !== undefined ? clamp((96 - wear.spo2) * 0.1, -0.2, 1.5) : 0) + (wear.vo2max !== undefined ? clamp((35 - wear.vo2max) * 0.02, -0.6, 1) : 0), -0.5, 2),
     };
     return {
       ageYears: p.ageYears, sex: p.sex, signals, prs,
@@ -195,7 +215,7 @@
   }
 
   /* ---------- Слой 6: объяснимость + attention ---------- */
-  const MODALITY_OF = { age:'Демография', sex:'Демография', bioAgeAccel:'Эпигенетика', prs:'Геном', monogenic:'Геном', genomicLoad:'Геном', family:'Семейный анамнез', bloodPressure:'Лаборатория/витальные', lipids:'Метаболомика', glycemia:'Метаболомика', adiposity:'Антропометрия', renal:'Лаборатория', hepatic:'Лаборатория', inflammation:'Протеомика', immune:'Иммунология', microbiome:'Микробиом', smoking:'Образ жизни', alcohol:'Образ жизни', inactivity:'Образ жизни', diet:'Образ жизни', sleep:'Носимые устройства', stress:'Образ жизни', environment:'Экология', social:'Социальные факторы', autonomic:'Носимые устройства', graph:'Граф механизмов' };
+  const MODALITY_OF = { age:'Демография', sex:'Демография', bioAgeAccel:'Эпигенетика', prs:'Геном', monogenic:'Геном', genomicLoad:'Геном', family:'Семейный анамнез', bloodPressure:'Лаборатория/витальные', lipids:'Метаболомика', glycemia:'Метаболомика', adiposity:'Антропометрия', renal:'Лаборатория', hepatic:'Лаборатория', hematologic:'Лаборатория', cardiac:'Протеомика', inflammation:'Протеомика', immune:'Иммунология', microbiome:'Микробиом', smoking:'Образ жизни', alcohol:'Образ жизни', inactivity:'Образ жизни', diet:'Образ жизни', sleep:'Носимые устройства', stress:'Образ жизни', environment:'Экология', social:'Социальные факторы', autonomic:'Носимые устройства', graph:'Граф механизмов' };
   function explain(score) {
     const shap = score.contributions.map((c) => ({ feature:c.label, value:Math.round(c.value*1000)/1000, modifiable:c.modifiable })).sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
     const byMod = {};
@@ -225,9 +245,9 @@
   /* ---------- Цифровой двойник ---------- */
   const TWIN_LABELS = { cardiovascular:'Сердечно-сосудистая', endocrine:'Эндокринная', immune:'Иммунная', nervous:'Нервная', microbiome:'Микробиом', metabolic:'Метаболизм', renal:'Почечная', hepatic:'Печёночная' };
   const SYS_DRIVERS = {
-    cardiovascular:{ bloodPressure:1, lipids:0.9, smoking:0.8, glycemia:0.5, autonomic:0.5, inflammation:0.4, age:0.6 },
+    cardiovascular:{ bloodPressure:1, lipids:0.9, smoking:0.8, glycemia:0.5, autonomic:0.5, inflammation:0.4, age:0.6, cardiac:0.7 },
     endocrine:{ glycemia:1.2, adiposity:0.9, inactivity:0.5, diet:0.4 },
-    immune:{ inflammation:1, immune:0.8, microbiome:0.5, age:0.4, stress:0.4 },
+    immune:{ inflammation:1, immune:0.8, microbiome:0.5, age:0.4, stress:0.4, hematologic:0.4 },
     nervous:{ age:0.8, bloodPressure:0.4, glycemia:0.4, stress:0.6, sleep:0.5, social:0.5, genomicLoad:0.4 },
     microbiome:{ microbiome:1.2, diet:0.7, inflammation:0.4 },
     metabolic:{ adiposity:1, glycemia:1, lipids:0.6, inactivity:0.6, diet:0.5 },

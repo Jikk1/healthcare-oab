@@ -25,6 +25,12 @@
   // Активный набор. Стартует на демо-данных, заменяется живыми из API при входе.
   let PATIENTS = DEMO_PATIENTS;
 
+  // Режим работы со списком: в serverMode фильтр/поиск/CRUD идут к API,
+  // иначе — клиентская фильтрация демо-набора.
+  let serverMode = false;
+  let currentLevel = 'all';
+  let searchDebounce = null;
+
   // Распределение по уровням риска [низкий, умеренный, высокий, критический].
   // Демо-значения; заменяются агрегатом из /v1/analytics/risk-distribution.
   let riskDistData = [812, 286, 126, 23];
@@ -52,6 +58,8 @@
     scenario: 'Сценарное моделирование',
     recommendations: 'План вмешательств',
     population: 'Популяционная аналитика',
+    billing: 'Биллинг и подписка',
+    audit: 'Аудит-журнал',
   };
   window.switchPage = (page) => {
     document.querySelectorAll('.page-panel').forEach((el) => el.classList.remove('active'));
@@ -61,6 +69,9 @@
     matches.forEach((m) => m.classList.add('active'));
     if (topbarTitle) topbarTitle.textContent = PAGE_TITLES[page] || 'Дашборд';
     window.scrollTo({ top: 0, behavior: 'smooth' });
+    // Ленивая подгрузка разделов организации при наличии сессии.
+    if (page === 'billing' && isServer()) loadBilling();
+    if (page === 'audit' && isServer()) loadAudit();
   };
 
   /* ---------- Toast ---------- */
@@ -113,7 +124,7 @@
   const patientRow = (p, mode = 'full') => {
     const lvlClass = levelClass[p.level] || 'risk-low';
     const tr = document.createElement('tr');
-    tr.onclick = () => window.switchPage('profile');
+    tr.onclick = () => window.openProfile(p._id);
     if (mode === 'overview') {
       tr.innerHTML = `
         <td><div class="p-avatar"><div class="ava">${p.initials}</div><div><div style="font-weight:500;font-size:13px">${p.name}</div><div style="font-size:11px;color:var(--text-3)">${p.id}</div></div></div></td>
@@ -121,7 +132,7 @@
         <td><strong style="font-family:var(--font-mono);color:${riskCol(p.cv)}">${fmtPct(p.cv)}</strong></td>
         <td>${bioOverviewCell(p)}</td>
         <td><span class="risk-badge ${lvlClass}">${levelLabel[p.level] || p.level}</span></td>
-        <td><button class="btn btn-outline btn-sm" onclick="event.stopPropagation();switchPage('profile')">Открыть →</button></td>`;
+        <td><button class="btn btn-outline btn-sm" onclick="event.stopPropagation();openProfile('${p._id || ''}')">Открыть →</button></td>`;
     } else {
       tr.innerHTML = `
         <td><div class="p-avatar"><div class="ava">${p.initials}</div><div><div style="font-weight:500;font-size:13px">${p.name}</div><div style="font-size:11px;color:var(--text-3)">${p.id}</div></div></div></td>
@@ -130,7 +141,10 @@
         <td><span style="font-family:var(--font-mono);color:${riskCol(p.dm)}">${fmtPct(p.dm)}</span></td>
         <td>${bioFullCell(p)}</td>
         <td><span class="risk-badge ${lvlClass}">${levelLabel[p.level] || p.level}</span></td>
-        <td><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();switchPage('profile')">→</button></td>`;
+        <td style="white-space:nowrap">
+          <button class="btn btn-ghost btn-sm" title="Редактировать" onclick="event.stopPropagation();editPatient('${p._id || ''}')">✎</button>
+          <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openProfile('${p._id || ''}')">→</button>
+        </td>`;
     }
     return tr;
   };
@@ -157,17 +171,300 @@
     rows.forEach((p) => patientsBody.appendChild(patientRow(p, 'full')));
   };
 
+  // Серверный режим, если первичная загрузка прошла по API ИЛИ есть access-токен.
+  const isServer = () => serverMode || !!(window.HCApi && window.HCApi.isAuthenticated && window.HCApi.isAuthenticated());
+
   window.filterPatients = (level, el) => {
     document.querySelectorAll('#riskFilters .chip').forEach((c) => c.classList.remove('active'));
     el?.classList.add('active');
+    currentLevel = level;
     const q = document.getElementById('patientSearch')?.value || '';
-    renderPatientTable(level, q);
+    if (isServer()) queryServer(q);
+    else renderPatientTable(level, q);
   };
   window.searchPatients = (v) => {
+    if (isServer()) { queryServer(v); return; }
     const active = document.querySelector('#riskFilters .chip.active');
     const filter = active?.textContent?.trim().toLowerCase() || 'all';
     const map = { 'все':'all','критический':'critical','высокий':'high','умеренный':'medium','низкий':'low' };
     renderPatientTable(map[filter] || 'all', v);
+  };
+
+  // Серверный поиск/фильтр (дебаунс): тянем страницу с /v1/patients?level&search.
+  const queryServer = (q) => {
+    clearTimeout(searchDebounce);
+    searchDebounce = setTimeout(() => {
+      loadRealPatients({ search: (q || '').trim() || undefined, level: currentLevel })
+        .catch(() => window.showToastDB?.('Ошибка', 'Не удалось загрузить пациентов', 'error'));
+    }, 300);
+  };
+
+  /* ─────────── CRUD пациентов (модальное окно) ─────────── */
+  const SEX_OPTS = [['MALE', 'Мужской'], ['FEMALE', 'Женский'], ['OTHER', 'Другое']];
+
+  const closeModal = () => {
+    const ov = document.getElementById('hcModal');
+    if (!ov) return;
+    ov.classList.remove('open');
+    setTimeout(() => ov.remove(), 180);
+  };
+
+  const requireAuth = () => {
+    if (isServer()) return true;
+    window.showToastDB?.('Нужен вход', 'Создание и изменение карт доступно после входа в систему', 'info');
+    return false;
+  };
+
+  // mode: 'create' | 'edit'; patient — строка PATIENTS для предзаполнения.
+  window.openPatientModal = (mode, patient = null) => {
+    if (!requireAuth()) return;
+    closeModal();
+    const isEdit = mode === 'edit';
+    const ov = document.createElement('div');
+    ov.className = 'dlg-overlay';
+    ov.id = 'hcModal';
+    ov.innerHTML = `
+      <div class="dlg" role="dialog" aria-modal="true">
+        <h3>${isEdit ? 'Редактирование карты' : 'Новый пациент'}</h3>
+        <div class="dlg-sub">${isEdit ? 'MRN ' + (patient?.mrn || patient?.id || '') : 'Заполните демографические данные карты'}</div>
+        <div class="dlg-row">
+          <div class="dlg-field"><label>Фамилия</label><input id="fLast" value="${patient?.lastName || ''}" maxlength="120" /></div>
+          <div class="dlg-field"><label>Имя</label><input id="fFirst" value="${patient?.firstName || ''}" maxlength="120" /></div>
+        </div>
+        <div class="dlg-row">
+          <div class="dlg-field"><label>Пол</label><select id="fSex">${SEX_OPTS.map(([v, l]) => `<option value="${v}" ${patient?.sexCode === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+          <div class="dlg-field"><label>Возраст</label><input id="fAge" type="number" min="0" max="120" value="${patient?.age ?? ''}" /></div>
+        </div>
+        ${isEdit ? '' : '<div class="dlg-field"><label>MRN (необязательно)</label><input id="fMrn" placeholder="напр. P-12345" maxlength="32" /></div>'}
+        <div class="dlg-err" id="fErr"></div>
+        <div class="dlg-actions">
+          ${isEdit ? '<button class="btn btn-outline btn-sm" id="fArchive" style="color:var(--rose);border-color:var(--rose)">Архивировать</button>' : ''}
+          <div class="right">
+            <button class="btn btn-ghost btn-sm" id="fCancel">Отмена</button>
+            <button class="btn btn-primary btn-sm" id="fSave">${isEdit ? 'Сохранить' : 'Создать'}</button>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+    requestAnimationFrame(() => ov.classList.add('open'));
+    ov.addEventListener('click', (e) => { if (e.target === ov) closeModal(); });
+    document.getElementById('fCancel').onclick = closeModal;
+    document.getElementById('fSave').onclick = () => savePatient(mode, patient);
+    if (isEdit) document.getElementById('fArchive').onclick = () => archivePatient(patient);
+  };
+
+  const savePatient = async (mode, patient) => {
+    const err = document.getElementById('fErr');
+    const lastName = document.getElementById('fLast').value.trim();
+    const firstName = document.getElementById('fFirst').value.trim();
+    const sex = document.getElementById('fSex').value;
+    const ageYears = parseInt(document.getElementById('fAge').value, 10);
+    if (!lastName || !firstName) { err.textContent = 'Укажите фамилию и имя'; return; }
+    if (!Number.isFinite(ageYears) || ageYears < 0 || ageYears > 120) { err.textContent = 'Возраст должен быть от 0 до 120'; return; }
+
+    const body = { firstName, lastName, sex, ageYears };
+    const btn = document.getElementById('fSave');
+    btn.disabled = true; btn.textContent = '…';
+    try {
+      if (mode === 'edit') {
+        await window.HCApi.patients.update(patient._id, body);
+        window.showToastDB?.('Сохранено', `Карта ${lastName} ${firstName} обновлена`, 'success');
+      } else {
+        const mrn = document.getElementById('fMrn')?.value.trim();
+        if (mrn) body.mrn = mrn;
+        await window.HCApi.patients.create(body);
+        window.showToastDB?.('Создано', `Карта ${lastName} ${firstName} добавлена`, 'success');
+      }
+      closeModal();
+      await loadRealPatients({ level: currentLevel });
+    } catch (e) {
+      err.textContent = e?.code === 'VALIDATION' ? 'Проверьте корректность полей' : (e?.message || 'Ошибка сохранения');
+      btn.disabled = false; btn.textContent = mode === 'edit' ? 'Сохранить' : 'Создать';
+    }
+  };
+
+  window.editPatient = (id) => {
+    if (!requireAuth()) return;
+    if (!id) { window.showToastDB?.('Недоступно', 'У демо-карты нет серверного идентификатора', 'info'); return; }
+    const patient = PATIENTS.find((p) => p._id === id);
+    if (patient) openPatientModal('edit', patient);
+  };
+
+  const archivePatient = async (patient) => {
+    if (!confirm(`Архивировать карту «${patient.name}»? Она исчезнет из активного списка.`)) return;
+    try {
+      await window.HCApi.patients.archive(patient._id);
+      window.showToastDB?.('Архивировано', `Карта ${patient.name} убрана из списка`, 'success');
+      closeModal();
+      await loadRealPatients({ level: currentLevel });
+    } catch (e) {
+      window.showToastDB?.('Ошибка', e?.message || 'Не удалось архивировать', 'error');
+    }
+  };
+
+  // Экспорт текущего списка в CSV (что видно — то и выгружается).
+  window.exportPatients = () => {
+    const head = ['MRN', 'Пациент', 'Пол', 'Возраст', 'ССЗ-риск', 'СД2-риск', 'Биовозраст', 'Уровень'];
+    const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const lines = [head.join(',')].concat(
+      PATIENTS.map((p) => [p.id, p.name, p.sex, p.age, p.cv ?? '', p.dm ?? '', p.bio ?? '', levelLabel[p.level] || p.level].map(esc).join(',')),
+    );
+    const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `patients-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+
+  /* ─────────── Карта пациента (живые данные) ─────────── */
+  const SEX_PROFILE = { MALE: 'Муж.', FEMALE: 'Жен.', OTHER: '—' };
+
+  window.openProfile = (id) => {
+    if (isServer() && id) openPatientProfile(id);
+    else window.switchPage('profile'); // демо-профиль
+  };
+
+  const openPatientProfile = async (id) => {
+    window.switchPage('profile');
+    const api = window.HCApi;
+    const setText = (idr, t) => { const e = document.getElementById(idr); if (e) e.textContent = t; };
+    try {
+      const p = await api.patients.get(id);
+      setText('profileName', p.fullName);
+      setText('profileAvatar', p.initials);
+      const meta = document.getElementById('profileMeta');
+      if (meta) meta.innerHTML = `${SEX_PROFILE[p.sex] || ''} · ${p.ageYears} лет · MRN: ${p.mrn}`;
+
+      let a = null;
+      try { a = await api.patients.latestAssessment(id); } catch { a = null; }
+      const metrics = document.getElementById('profileMetrics');
+
+      if (a) {
+        const lvl = (a.riskLevel || '').toLowerCase();
+        const badge = document.getElementById('profileBadge');
+        if (badge) { badge.className = 'risk-badge ' + (levelClass[lvl] || 'risk-low'); badge.textContent = levelLabel[lvl] || a.riskLevel; }
+
+        const bio = Math.round(a.bioAge), chrono = Math.round(a.chronoAge);
+        setText('bioAgeNum', bio);
+        const delta = bio - chrono;
+        const dEl = document.getElementById('bioAgeDelta');
+        if (dEl) { dEl.textContent = `${delta >= 0 ? '+' : ''}${delta} лет к хронологическому`; dEl.style.color = delta > 0 ? 'var(--amber)' : 'var(--mint)'; }
+        setText('bioAgeChrono', `Хронологический: ${chrono} лет`);
+        const ring = document.getElementById('bioAgeCircle');
+        if (ring) ring.style.strokeDashoffset = String(314 - 314 * Math.min(1, bio / 90));
+
+        const rows = [
+          ['ИМ (10л)', a.miRisk], ['Инсульт (10л)', a.strokeRisk], ['ССЗ (10л)', a.cvRisk],
+          ['СД2 (10л)', a.dmRisk], ['Онко (10л)', a.oncoRisk], ['ХБП (10л)', a.ckdRisk],
+        ].filter(([, v]) => v != null);
+        if (metrics) metrics.innerHTML = rows.map(([nm, v]) =>
+          `<div class="bio-metric-row"><span class="bio-metric-label">${nm}</span><span class="bio-metric-value" style="color:${A.riskColor(v)}">${Number(v).toFixed(1)}%</span></div>`).join('');
+
+        const fr = document.getElementById('profileFinalRisk');
+        if (fr && a.miRisk != null) fr.innerHTML = `${Number(a.miRisk).toFixed(1)}%`;
+
+        renderShap(a.shapFactors);
+      } else if (metrics) {
+        metrics.innerHTML = '<div style="color:var(--text-3);font-size:13px;padding:8px 0">Нет ассессментов. Внесите показатели на странице «Анализы».</div>';
+      }
+
+      loadRecommendations(id);
+    } catch (e) {
+      window.showToastDB?.('Ошибка', e?.message || 'Не удалось открыть карту', 'error');
+    }
+  };
+
+  const loadRecommendations = async (id) => {
+    try { renderRecs(await window.HCApi.patients.recommendations(id)); }
+    catch { renderRecs([]); }
+  };
+
+  /* ─────────── Биллинг ─────────── */
+  const money = (cents) => (cents ? (cents / 100).toLocaleString('ru-RU') + ' ₽' : '0 ₽');
+  const limitTxt = (n) => (n == null ? 'без ограничений' : String(n));
+
+  const loadBilling = async () => {
+    const api = window.HCApi;
+    const subEl = document.getElementById('billingSubscription');
+    const plansEl = document.getElementById('billingPlans');
+    const invEl = document.getElementById('billingInvoices');
+    const [sub, plans, invoices] = await Promise.all([
+      api.billing.subscription().catch(() => null),
+      api.billing.plans().catch(() => []),
+      api.billing.invoices().catch(() => []),
+    ]);
+    if (sub && subEl) {
+      const active = (sub.status || '').toUpperCase() === 'ACTIVE';
+      subEl.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
+        <div>
+          <div style="font-size:22px;font-weight:700">${sub.plan || '—'}</div>
+          <div style="font-size:12px;color:var(--text-3)">Пациентов: ${limitTxt(sub.patientLimit)} · мест: ${limitTxt(sub.seatLimit)}</div>
+        </div>
+        <span class="risk-badge ${active ? 'risk-low' : 'risk-medium'}">${sub.status || ''}</span>
+      </div>`;
+    }
+    if (plansEl) plansEl.innerHTML = (plans || []).map((pl) =>
+      `<div style="display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid var(--border)">
+        <div>
+          <div style="font-weight:600">${pl.plan}</div>
+          <div style="font-size:11px;color:var(--text-3)">${pl.monthlyCents ? money(pl.monthlyCents) + '/мес' : 'по договору'} · до ${limitTxt(pl.patientLimit)} пациентов</div>
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="changePlan('${pl.plan}')">Выбрать</button>
+      </div>`).join('') || '<div style="color:var(--text-3)">Нет тарифов</div>';
+    if (invEl) invEl.innerHTML = (invoices || []).length
+      ? invoices.map((iv) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);font-size:13px">
+          <span>${iv.number || ''}</span>
+          <span style="font-family:var(--font-mono)">${money(iv.amountCents)}</span>
+          <span class="risk-badge ${(iv.status || '').toUpperCase() === 'PAID' ? 'risk-low' : 'risk-medium'}">${iv.status || ''}</span>
+        </div>`).join('')
+      : '<div style="color:var(--text-3)">Счетов пока нет</div>';
+  };
+
+  window.changePlan = async (plan) => {
+    if (!confirm('Сменить тарифный план на ' + plan + '?')) return;
+    try {
+      await window.HCApi.billing.changePlan(plan);
+      window.showToastDB?.('Готово', 'Тариф изменён на ' + plan, 'success');
+      loadBilling();
+    } catch (e) {
+      window.showToastDB?.('Ошибка', e?.code === 'FORBIDDEN' ? 'Недостаточно прав (нужна роль OWNER/BILLING)' : (e?.message || 'Не удалось сменить тариф'), 'error');
+    }
+  };
+
+  /* ─────────── Аудит-журнал ─────────── */
+  const loadAudit = async () => {
+    const body = document.getElementById('auditTableBody');
+    if (!body) return;
+    try {
+      const res = await window.HCApi.audit.logs({ pageSize: 50 });
+      const items = (res && res.items) || [];
+      body.innerHTML = items.length
+        ? items.map((l) => `<tr>
+            <td style="font-family:var(--font-mono);font-size:11px">${new Date(l.createdAt).toLocaleString('ru-RU')}</td>
+            <td>${l.action || ''}</td>
+            <td style="font-size:12px;color:var(--text-3)">${l.resourceType || ''}${l.resourceId ? ' · ' + String(l.resourceId).slice(0, 8) : ''}</td>
+            <td style="font-size:12px">${l.actorUserId ? String(l.actorUserId).slice(0, 8) : '—'}</td>
+            <td style="font-family:var(--font-mono);font-size:11px">${l.ipAddress || '—'}</td>
+          </tr>`).join('')
+        : '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-3)">Записей нет</td></tr>';
+    } catch (e) {
+      body.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-3)">${e?.code === 'FORBIDDEN' ? 'Доступ только для OWNER/ADMIN' : 'Не удалось загрузить журнал'}</td></tr>`;
+    }
+  };
+
+  window.verifyAudit = async () => {
+    const out = document.getElementById('auditVerifyResult');
+    if (!isServer()) { window.showToastDB?.('Нужен вход', 'Аудит доступен после входа', 'info'); return; }
+    if (out) out.innerHTML = '<span style="color:var(--text-3)">Проверка…</span>';
+    try {
+      const r = await window.HCApi.audit.verify(); // { ok, brokenAt? }
+      if (out) out.innerHTML = r && r.ok
+        ? '<span style="color:var(--mint)">✓ Цепочка целостна — записи не изменялись</span>'
+        : `<span style="color:var(--rose)">✗ Нарушение целостности${r && r.brokenAt ? ' на записи ' + String(r.brokenAt).slice(0, 8) : ''}</span>`;
+    } catch (e) {
+      if (out) out.innerHTML = `<span style="color:var(--rose)">${e?.code === 'FORBIDDEN' ? 'Доступ только для OWNER/ADMIN' : (e?.message || 'Ошибка проверки')}</span>`;
+    }
   };
 
   /* ---------- Recommendations + risk summary ---------- */
@@ -179,9 +476,24 @@
     { icon:'🥗', title:'DASH-диета + Ω-3 жирные кислоты', desc:'Снижение натрия до 1500 мг/сут · EPA/DHA 2–4 г/сут из жирной рыбы или добавок', impact:'−4% ССЗ', cls:'amber' },
     { icon:'🩺', title:'Расширенная эхокардиография', desc:'Исключение субклинической ГЛЖ и диастолической дисфункции · в ближайшие 4 недели', impact:'Диагностика', cls:'' },
   ];
-  const renderRecs = () => {
+  const REC_ICON = { PHARMACOLOGY: '💊', LIFESTYLE: '🏃', DIAGNOSTICS: '🩺', MONITORING: '📈', REFERRAL: '👨‍⚕️' };
+  // items — необязательные рекомендации с сервера ({category,title,detail,impact,priority}).
+  const renderRecs = (items) => {
     if (!recList) return;
-    recList.innerHTML = RECS.map((r) => `
+    if (Array.isArray(items) && items.length === 0) {
+      recList.innerHTML = '<div style="color:var(--text-3);font-size:13px;padding:8px 0">Рекомендаций нет — добавьте ассессмент пациенту.</div>';
+      return;
+    }
+    const cards = items && items.length
+      ? items.map((r) => ({
+          icon: REC_ICON[r.category] || '📋',
+          title: r.title,
+          desc: r.detail || r.description || '',
+          impact: r.impact || (r.priority != null ? `приоритет ${r.priority}` : ''),
+          cls: r.priority >= 90 ? 'mint' : r.priority >= 70 ? 'amber' : '',
+        }))
+      : RECS;
+    recList.innerHTML = cards.map((r) => `
       <div class="rec-card ${r.cls}">
         <div class="rec-ico">${r.icon}</div>
         <div>
@@ -312,20 +624,25 @@
     });
   };
 
-  const renderShap = () => {
+  const SHAP_DEMO = [
+    { f:'Возраст · 58 лет',      v:  7.2, imm:true },
+    { f:'Курение · 25 пачко-лет', v:  6.8, imm:false },
+    { f:'АД сист. · 158',        v:  5.1, imm:false },
+    { f:'LDL · 4.8 ммоль/л',     v:  4.4, imm:false },
+    { f:'Семейный анамнез ИМ',   v:  3.7, imm:true },
+    { f:'ИМТ · 29.4',            v:  2.8, imm:false },
+    { f:'Физ. активность',       v: -2.1, imm:false },
+    { f:'HbA1c · 5.7%',          v: -0.8, imm:false },
+  ];
+  // rows — необязательные SHAP-факторы из ассессмента ({feature,value,modifiable}).
+  const renderShap = (rows) => {
     const el = document.getElementById('shapChart');
     if (!el) return;
-    const data = [
-      { f:'Возраст · 58 лет',      v:  7.2, imm:true },
-      { f:'Курение · 25 пачко-лет', v:  6.8, imm:false },
-      { f:'АД сист. · 158',        v:  5.1, imm:false },
-      { f:'LDL · 4.8 ммоль/л',     v:  4.4, imm:false },
-      { f:'Семейный анамнез ИМ',   v:  3.7, imm:true },
-      { f:'ИМТ · 29.4',            v:  2.8, imm:false },
-      { f:'Физ. активность',       v: -2.1, imm:false },
-      { f:'HbA1c · 5.7%',          v: -0.8, imm:false },
-    ];
-    const max = Math.max(...data.map((d) => Math.abs(d.v)));
+    const data = rows && rows.length
+      ? rows.map((r) => ({ f: r.feature, v: r.value, imm: r.modifiable === false }))
+            .sort((a, b) => Math.abs(b.v) - Math.abs(a.v)).slice(0, 10)
+      : SHAP_DEMO;
+    const max = Math.max(...data.map((d) => Math.abs(d.v))) || 1;
     el.innerHTML = data.map((d) => {
       const pos = d.v >= 0;
       const w = (Math.abs(d.v) / max) * 100;
@@ -612,13 +929,19 @@
     }
   };
 
-  const loadRealPatients = async () => {
+  // params: { search?, level? } — level в терминах фронта (all/critical/…).
+  const loadRealPatients = async (params = {}) => {
     const api = window.HCApi;
-    const res = await api.patients.list({ pageSize: 100 });
+    const levelMap = { critical: 'CRITICAL', high: 'HIGH', medium: 'MEDIUM', low: 'LOW' };
+    const query = { pageSize: 100 };
+    if (params.search) query.search = params.search;
+    if (params.level && params.level !== 'all') query.level = levelMap[params.level];
+    const res = await api.patients.list(query);
     const items = (res && res.items) || [];
     PATIENTS = items.map(api.adapters.patientToRow);
     renderOverviewTable();
-    renderPatientTable();
+    // В serverMode таблица уже отфильтрована сервером — рендерим как есть.
+    renderPatientTable('all', '');
     return PATIENTS.length;
   };
 
@@ -677,11 +1000,13 @@
     const mode = await ensureSession();
     if (mode === 'authenticated') {
       try {
+        serverMode = true;
         const n = await loadRealPatients();
         await loadAnalytics();
         applyAuthUi('authenticated');
         window.showToastDB?.('Данные загружены', `Пациенты из API · ${n} карт`, 'success');
       } catch (err) {
+        serverMode = false;
         applyAuthUi('demo');
         window.showToastDB?.('Демо-режим', 'API недоступен — показаны демо-данные', 'info');
       }

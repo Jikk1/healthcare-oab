@@ -13,33 +13,37 @@
 
 ## 1. Запуск фронтенда (самое простое)
 
-Фронтенд — это обычные статические файлы. Достаточно отдать их по HTTP.
+Фронтенд собирается на **Vite** (Vanilla, без фреймворка): дев-сервер с HMR,
+сборка в `dist/`, переменные окружения и code-splitting по страницам.
 
-**Вариант А — одной командой (рекомендуется):**
+**Дев-режим (рекомендуется):**
 
 ```bash
-npm start
+npm install      # один раз: ставит vite, chart.js, lenis
+npm run dev
 ```
 
-Откроется статический сервер на <http://localhost:5173>. Перейдите туда в браузере.
+Откроется дев-сервер на <http://localhost:5173>. Перейдите туда в браузере.
 
 > Порт **5173** выбран намеренно: бэкенд слушает **8080**, а `CORS_ORIGINS`
 > бэкенда по умолчанию разрешает именно `http://localhost:5173`. Так фронт и бэк
 > не конфликтуют по порту и cookie/CORS работают из коробки.
 
-**Вариант Б — любой статический сервер:**
+**Прод-сборка:**
 
 ```bash
-npx serve -l 5173 .
-# или
-python -m http.server 5173
+npm run build    # → dist/ (хэшированные ассеты, готово к раздаче CDN/nginx)
+npm run preview  # локальный предпросмотр собранного бандла на :5173
 ```
 
-**Вариант В — просто открыть файл.** Можно дважды кликнуть `index.html`. Страница откроется, но запуск через сервер надёжнее (некоторые браузеры ограничивают `file://`).
+### Конфигурация адреса API
+`api.js` берёт базовый URL в порядке: `window.HC_CONFIG.apiBase` (рантайм-`config.js`,
+который Docker перегенерирует из `API_BASE`) → `import.meta.env.VITE_API_BASE`
+(билд-тайм env Vite) → `<meta name="hc-api-base">` → дефолт `http://localhost:8080`.
 
-### Почему «не работало» раньше
-- Библиотеки **Chart.js** и **Lenis** грузились с интернет-CDN. Без интернета графики на дашборде не отрисовывались, и казалось, что «ничего не работает». Теперь они лежат локально в `vendor/` и работают офлайн.
-- В корне не было ни `README`, ни команды запуска — было непонятно, с чего начинать. Теперь есть `npm start`.
+### Зависимости
+**Chart.js** и **Lenis** ставятся из npm и бандлятся Vite (раньше лежали в `vendor/`).
+Графики и плавный скролл работают офлайн после `npm install`.
 
 Страницы:
 - `index.html` — лендинг (анимации, калькулятор риска, тарифы).
@@ -134,12 +138,24 @@ make help        # все цели
 ├── index.html / dashboard.html   # страницы
 ├── styles.css / dashboard.css    # стили
 ├── app.js / dashboard.js / charts.js   # логика фронтенда
-├── api.js / config.js            # клиент API + runtime-конфиг (адрес API)
-├── vendor/                        # локальные Chart.js и Lenis (офлайн)
-├── package.json                   # npm start → статический сервер (:5173)
-├── frontend.Dockerfile / nginx.conf / docker-entrypoint.sh  # контейнер фронта
+├── api.js                         # клиент API (адрес см. «Конфигурация адреса API»)
+├── public/config.js               # runtime-конфиг (адрес API), не бандлится Vite
+├── vite.config.js                 # многостраничная сборка (5 точек входа)
+├── package.json                   # npm run dev / build / preview (Vite)
+├── frontend.Dockerfile / nginx.conf / docker-entrypoint.sh  # контейнер фронта (multi-stage build)
 └── backend/                       # API (см. backend/README.md)
 ```
+
+---
+
+## 🤖 Для разработчиков (AI Agents)
+
+Проект оптимизирован для работы с ИИ-агентами (например, **Claude Code**).
+Стратегия развития — в [STRATEGY.md](STRATEGY.md); правила для агентов и контекст архитектуры — в [AGENTS.md](AGENTS.md).
+
+Чтобы начать работу с проектом через Claude Code:
+1. Установите Claude Code: `npm install -g @anthropic-ai/claude-code`
+2. Запустите в корне проекта: `claude`
 
 ---
 
@@ -149,6 +165,6 @@ make help        # все цели
 
 1. **Связать фронтенд с API.** Сейчас дашборд показывает захардкоженные данные (`PATIENTS` в `dashboard.js`). Нужно заменить их на `fetch('/v1/patients', { headers: { Authorization: ... }})`.
 2. **Экран входа.** У бэкенда есть `/v1/auth/login`, но на фронте нет формы логина и хранения токена.
-3. **Сборка фронтенда.** Для роста проекта стоит перейти на Vite/React, чтобы был bundler, env-переменные и code-splitting.
+3. ~~**Сборка фронтенда.**~~ ✅ Готово: фронт переведён на **Vite** (Vanilla) — bundler, env-переменные (`VITE_API_BASE`), code-splitting по страницам, npm-зависимости вместо `vendor/`.
 4. **Развёртывание.** Бэкенд контейнеризован (`Dockerfile`, `docker-compose.yml`, `infra/k8s`), фронтенд можно отдавать через тот же Nginx/CDN.
 5. **CI.** Есть `.github/workflows/ci.yml` — убедитесь, что он гоняет `lint + typecheck + test` на каждый PR.

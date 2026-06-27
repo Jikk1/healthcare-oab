@@ -20,12 +20,16 @@
   // Дев-замечание: фронт и бэк по умолчанию оба хотят :8080 — разведите порты
   // (фронт на :5173, бэк на :8080), иначе CORS/конфликт порта. См. INTEGRATION_PLAN.md.
   function readConfiguredBase() {
-    // 1) Runtime config (container generates config.js → window.HC_CONFIG.apiBase
-    //    from the API_BASE env var). Lets one image serve any environment.
+    // 1) Runtime config (container regenerates /config.js → window.HC_CONFIG.apiBase
+    //    from the API_BASE env var). Highest priority: lets one built image serve
+    //    any environment without a rebuild.
     if (window.HC_CONFIG && window.HC_CONFIG.apiBase) {
       return String(window.HC_CONFIG.apiBase).replace(/\/+$/, '');
     }
-    // 2) Static build/dev override via <meta name="hc-api-base" content="...">.
+    // 2) Build-time env baked by Vite (import.meta.env.VITE_API_BASE).
+    const envBase = import.meta.env && import.meta.env.VITE_API_BASE;
+    if (envBase) return String(envBase).replace(/\/+$/, '');
+    // 3) Static override via <meta name="hc-api-base" content="...">.
     const el = document.querySelector('meta[name="hc-api-base"]');
     return el && el.content ? el.content.replace(/\/+$/, '') : null;
   }
@@ -188,6 +192,16 @@
     get(id) {
       return request(`/v1/patients/${encodeURIComponent(id)}`);
     },
+    // CRUD (мутации требуют роли OWNER/ADMIN/CLINICIAN на сервере).
+    create(body) {
+      return request('/v1/patients', { method: 'POST', body });
+    },
+    update(id, body) {
+      return request(`/v1/patients/${encodeURIComponent(id)}`, { method: 'PATCH', body });
+    },
+    archive(id) {
+      return request(`/v1/patients/${encodeURIComponent(id)}`, { method: 'DELETE' }); // 204
+    },
     latestAssessment(id) {
       return request(`/v1/patients/${encodeURIComponent(id)}/assessments/latest`);
     },
@@ -226,6 +240,20 @@
     forPatient: (id) => request(`/v1/patients/${encodeURIComponent(id)}/predict`),
   };
 
+  /* ---------- Биллинг ---------- */
+  const billing = {
+    plans: () => request('/v1/billing/plans'),
+    subscription: () => request('/v1/billing/subscription'),
+    invoices: () => request('/v1/billing/invoices'),
+    changePlan: (plan) => request('/v1/billing/subscription', { method: 'POST', body: { plan } }),
+  };
+
+  /* ---------- Аудит (OWNER/ADMIN) ---------- */
+  const audit = {
+    logs: (params = {}) => request('/v1/audit/logs', { query: params }), // → Page<AuditLog>
+    verify: () => request('/v1/audit/verify'),
+  };
+
   /* ---------- Адаптеры под текущий фронт ---------- */
   // Преобразует PatientDto сервера в форму строки PATIENTS из dashboard.js.
   const SEX_RU = { MALE: 'Муж', FEMALE: 'Жен', OTHER: '—' };
@@ -233,9 +261,13 @@
     return {
       id: dto.mrn || dto.id,
       _id: dto.id, // настоящий UUID для последующих запросов
+      mrn: dto.mrn,
+      firstName: dto.firstName, // для предзаполнения формы редактирования
+      lastName: dto.lastName,
       name: dto.fullName,
       initials: dto.initials,
       sex: SEX_RU[dto.sex] || dto.sex,
+      sexCode: dto.sex, // MALE/FEMALE/OTHER для формы
       age: dto.ageYears,
       cv: dto.latestCvRisk == null ? null : dto.latestCvRisk,
       dm: dto.latestDmRisk == null ? null : dto.latestDmRisk,
@@ -260,6 +292,8 @@
     patients,
     analytics,
     predict,
+    billing,
+    audit,
     adapters: { patientToRow },
     ApiError,
   };

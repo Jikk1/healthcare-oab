@@ -79,6 +79,7 @@
     </a>
 
     <div class="nav-links">
+      <a href="cox.html">Модель Кокса</a>
       <a href="#features">Функции</a>
       <a href="#demo">Демо</a>
       <a href="#how">Как работает</a>
@@ -89,6 +90,7 @@
 
     <div class="nav-actions">
       <div class="live-pill"><span id="liveCount">143</span> клиники онлайн</div>
+      <a href="labs.html" class="btn btn-ghost btn-sm">Мои анализы</a>
       <a href="predict.html" class="btn btn-ghost btn-sm">OmniRisk</a>
       <a href="dashboard.html" class="btn btn-primary btn-sm">
         Открыть демо
@@ -101,12 +103,14 @@
   </div>
 </nav>
 <div class="mobile-nav" id="mobileNav">
+  <a href="cox.html">Модель Кокса · научная основа</a>
   <a href="#features">Функции</a>
   <a href="#demo">Демо</a>
   <a href="#how">Как работает</a>
   <a href="#data">Данные</a>
   <a href="#roadmap">Roadmap</a>
   <a href="#pricing">Цены</a>
+  <a href="labs.html">Мои анализы · ввод показателей</a>
   <a href="predict.html">OmniRisk · Универсальный прогноз</a>
   <a href="dashboard.html" class="btn btn-primary btn-sm" style="margin-top:6px;">Открыть демо</a>
 </div>
@@ -775,7 +779,7 @@
 </footer>
 
 <!-- Smooth-scroll (optional, served locally so the page works offline) -->
-<script src="vendor/lenis.min.js" defer></script>
-<script src="app.js" defer></script>
+<script type="module">import Lenis from 'lenis'; window.Lenis = Lenis;</script>
+<script type="module" src="/app.js"></script>
 </body>
 </html>

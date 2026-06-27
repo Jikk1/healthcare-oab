@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0a1628" />
+  <title>Демонстрация алгоритмов — модель Кокса в действии</title>
+  <meta name="description" content="Живая демонстрация расчётного модуля Кокса: коэффициенты β/HR, кривые выживания, тест пропорциональности (Schoenfeld), C-index и калибровка." />
+  <meta name="hc-api-base" content="http://localhost:8080" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="cox.css" />
+</head>
+<body>
+  <header class="nav">
+    <div class="wrap nav-row">
+      <a class="brand" href="cox.html">
+        <span class="mark">βλ</span>
+        <span>Cox<span style="color:var(--teal-bright)">Predict</span></span>
+      </a>
+      <nav class="nav-links">
+        <a href="cox.html">← О технологии</a>
+        <a href="index.html">Платформа ↗</a>
+      </nav>
+      <a class="btn btn-primary" href="predict.html">Открыть OmniRisk</a>
+    </div>
+  </header>
+
+  <main class="section" style="padding-top:48px">
+    <div class="wrap">
+      <span class="eyebrow"><span class="dot"></span>Live demo · Cox Proportional Hazards</span>
+      <h1 style="font-size:clamp(1.8rem,4vw,2.8rem);letter-spacing:-0.025em;margin:18px 0 10px">Демонстрация алгоритмов</h1>
+      <p style="color:var(--text-2);max-width:70ch;margin:0 0 18px">
+        Модель Кокса подгоняется методом Ньютона–Рафсона на когорте с двумя предикторами
+        (возраст и биомаркер). Ниже — реальный результат: коэффициенты, кривые выживания,
+        проверка пропорциональности рисков, C-index и калибровка.
+      </p>
+      <div class="demo-status" id="status"><span class="dot snap"></span><span id="statusText">загрузка…</span></div>
+
+      <div class="cox-kpis" id="kpis"></div>
+
+      <div class="demo-grid">
+        <section class="panel full">
+          <h3>Отношения рисков (Hazard Ratio) с 95% ДИ</h3>
+          <p class="cap">exp(β) для каждой ковариаты. Маркер — точечная оценка, линия — доверительный интервал; вертикаль HR = 1 разделяет защитный и повышающий риск эффекты.</p>
+          <div id="forest"></div>
+        </section>
+
+        <section class="panel">
+          <h3>Персональные кривые выживания S(t|x)</h3>
+          <p class="cap">Оценка Бреслоу базовой опасности с поправкой на ковариаты — для трёх профилей риска.</p>
+          <canvas id="survivalChart" height="240"></canvas>
+        </section>
+
+        <section class="panel">
+          <h3>Калибровка модели</h3>
+          <p class="cap">Предсказанная вероятность события против наблюдаемой (Каплан–Майер) по бинам риска. Идеал — на диагонали.</p>
+          <canvas id="calibrationChart" height="240"></canvas>
+        </section>
+
+        <section class="panel full">
+          <h3>Проверка пропорциональности рисков · остатки Шёнфельда</h3>
+          <p class="cap">Корреляция остатков со временем по каждой ковариате. Значимая корреляция (p &lt; 0.05) указывает на нарушение допущения.</p>
+          <table class="ph-table" id="phTable"></table>
+          <div class="rec-note" id="phRec"></div>
+        </section>
+
+        <section class="panel full">
+          <h3>Прогноз выживаемости по горизонтам</h3>
+          <p class="cap">S(t|x) для каждого профиля на 1 / 3 / 5 лет.</p>
+          <div id="horizons"></div>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap footer-inner">
+      <p class="disclaimer">Основано на доказательной математической статистике и вычислительной онкологии. <b>Не является врачебным решением, но является лучшим ассистентом для его принятия.</b></p>
+      <span class="copy">© 2026 CoxPredict</span>
+    </div>
+  </footer>
+
+  <script type="module" src="/cox-demo.js"></script>
+</body>
+</html>

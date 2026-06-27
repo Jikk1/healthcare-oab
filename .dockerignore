@@ -1,6 +1,7 @@
-# Frontend image build context — keep it to static assets only.
+# Frontend image build context — source only; the image runs `vite build`.
 backend/
 node_modules/
+dist/
 .git/
 .github/
 .vscode/

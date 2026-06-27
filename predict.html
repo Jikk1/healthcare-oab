@@ -10,7 +10,6 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <script src="vendor/chart.umd.min.js"></script>
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="dashboard.css" />
   <style>
@@ -74,6 +73,8 @@
     </div>
     <nav class="or-nav">
       <a href="index.html" class="btn btn-outline btn-sm">← На главную</a>
+      <a href="cox.html" class="btn btn-outline btn-sm">Модель Кокса</a>
+      <a href="labs.html" class="btn btn-outline btn-sm">Мои анализы</a>
       <a href="dashboard.html" class="btn btn-outline btn-sm">Дашборд врача</a>
     </nav>
   </header>
@@ -223,9 +224,10 @@
   </div>
 </div>
 
-<script src="config.js"></script>
-<script src="api.js"></script>
-<script src="omnirisk.js"></script>
-<script src="predict.js"></script>
+<script src="/config.js"></script>
+<script type="module">import Chart from 'chart.js/auto'; window.Chart = Chart;</script>
+<script type="module" src="/api.js"></script>
+<script type="module" src="/omnirisk.js"></script>
+<script type="module" src="/predict.js"></script>
 </body>
 </html>
