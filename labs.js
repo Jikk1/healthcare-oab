@@ -7,6 +7,8 @@
    сервере (HCApi). Пустые поля не учитываются — это влияет на полноту данных
    и ширину доверительных интервалов, а не ломает расчёт.
    ============================================================ */
+import { resolveRange, fieldStatus, BIOMARKER_MAP, mapBiomarkers } from './lib/clinical.js';
+
 (() => {
   'use strict';
   const { runOmniRisk, CATEGORY_LABELS } = window.OmniRisk;
@@ -87,22 +89,10 @@
     o[keys[keys.length - 1]] = value;
   }
 
-  /* ---------- Нормы с учётом пола ---------- */
-  function refRange(field) {
-    const r = field.ref;
-    if (Array.isArray(r)) return r;
-    return r[state.sex] || r.OTHER;
-  }
+  /* ---------- Нормы с учётом пола (чистая логика — в lib/clinical.js) ---------- */
+  const refRange = (field) => resolveRange(field.ref, state.sex);
   // status: 'ok' | 'warn' | 'bad' | null (нет значения)
-  function statusOf(field, value) {
-    if (value === undefined || Number.isNaN(value)) return null;
-    const [lo, hi] = refRange(field);
-    // Ширина нормы; для «точечных» норм вида [0,0] откатываемся на масштаб границы.
-    const span = (hi - lo) || Math.abs(hi) || Math.abs(lo) || 1;
-    if (value >= lo && value <= hi) return 'ok';
-    const dev = value < lo ? (lo - value) : (value - hi);
-    return dev > span * 0.4 ? 'bad' : 'warn';
-  }
+  const statusOf = (field, value) => fieldStatus(refRange(field), value);
   function refText(field) {
     const [lo, hi] = refRange(field);
     if (lo === 0 && hi === 0) return 'норма 0';
@@ -378,25 +368,17 @@
   /* ---------- Врачебный режим: сохранение ассессмента в карту ----------
      Поля labs (клинические единицы) маппятся в BiomarkerBody сервера. Поля,
      которых нет в форме (onStatins) опускаем — у сервера есть значения по умолчанию. */
-  const BIOMARKER_MAP = {
-    systolicBp: 'systolicBp', diastolicBp: 'diastolicBp', ldl: 'ldl', hdl: 'hdl',
-    totalChol: 'totalChol', hba1c: 'hba1c', bmi: 'bmi', egfr: 'egfr',
-    packYears: 'packYears', activityPerWeek: 'activityPerWeek',
-  };
-  const BIOMARKER_INT = new Set(['systolicBp', 'diastolicBp', 'activityPerWeek']);
-
+  // Считываем значения нужных полей из DOM и отдаём чистому мапперу из lib.
   function buildBiomarkerBody() {
-    const b = { smokingStatus: state.smoke };
-    let count = 0;
-    for (const [fid, key] of Object.entries(BIOMARKER_MAP)) {
+    const values = {};
+    for (const fid of Object.keys(BIOMARKER_MAP)) {
       const f = FIELD_BY_ID.get(fid);
       const v = f ? fieldValue(f) : undefined;
-      if (v !== undefined) { b[key] = BIOMARKER_INT.has(fid) ? Math.round(v) : v; count++; }
+      if (v !== undefined) values[fid] = v;
     }
     const famF = FIELD_BY_ID.get('familyCv');
-    const fam = famF ? fieldValue(famF) : undefined;
-    if (fam !== undefined) b.familyHistoryCvd = fam > 0;
-    return { body: b, count };
+    const familyCv = famF ? fieldValue(famF) : undefined;
+    return mapBiomarkers(values, { smokingStatus: state.smoke, familyCv });
   }
 
   // Проверяет сессию и, если врач авторизован, открывает блок и грузит пациентов.
