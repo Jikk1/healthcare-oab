@@ -45,6 +45,8 @@ export const SIGNAL_LABELS: Record<SignalKey, string> = {
   adiposity: 'Ожирение/ИМТ',
   renal: 'Почечная функция',
   hepatic: 'Печёночная функция',
+  hematologic: 'Гематология (кровь/ОАК)',
+  cardiac: 'Кардиомаркеры (тропонин/BNP)',
   inflammation: 'Хроническое воспаление',
   immune: 'Иммунный статус',
   genomicLoad: 'Геномная нагрузка',

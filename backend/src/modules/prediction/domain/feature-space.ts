@@ -24,6 +24,9 @@ export type ModalitySignals = {
   adiposity: number;
   renal: number;
   hepatic: number;
+  // Гематология / кардиомаркеры
+  hematologic: number; // анемия/цитопении/цитозы по ОАК
+  cardiac: number; // повреждение миокарда (тропонин/NT-proBNP)
   // Воспаление / иммунитет
   inflammation: number;
   immune: number;
@@ -112,21 +115,71 @@ export function normalizeProfile(p: HealthProfile): NormalizedProfile {
   const prsMean = prsValues.length ? prsValues.reduce((a, b) => a + b, 0) / prsValues.length : 0;
   const genomicLoad = clamp(prsMean * 0.6 + (p.genomic?.monogenic?.length ?? 0) * 0.8, -1, 3);
 
+  // Воспаление: вч-СРБ + ИЛ-6 + дисбиоз + нейтрофил-лимфоцитарное отношение (NLR) + СОЭ.
+  const nlr =
+    labs.neutrophils !== undefined && labs.lymphocytes !== undefined && labs.lymphocytes > 0
+      ? labs.neutrophils / labs.lymphocytes
+      : undefined;
   const inflammation = clamp(
-    pressure(prot.crp, 1, 0.25) + pressure(prot.il6, 2, 0.12) + (micro.dysbiosisIndex ?? 0) / 60,
+    pressure(prot.crp, 1, 0.25) +
+      pressure(prot.il6, 2, 0.12) +
+      (micro.dysbiosisIndex ?? 0) / 60 +
+      (nlr !== undefined ? clamp((nlr - 2) * 0.18, -0.2, 1.5) : 0) +
+      pressure(labs.esr, 8, 0.03),
     -0.5,
     3,
   );
 
+  // Гематология: анемия (низкий Hb/Hct, с учётом пола) + аномалии тромбоцитов.
+  const hbOptimal = p.sex === 'FEMALE' ? 135 : p.sex === 'MALE' ? 150 : 140; // г/л, середина нормы
+  const hctOptimal = p.sex === 'FEMALE' ? 41 : p.sex === 'MALE' ? 45 : 43; // %, середина нормы
+  const anemiaPressure =
+    (labs.hemoglobin !== undefined ? clamp((hbOptimal - labs.hemoglobin) * 0.045, -0.4, 3) : 0) +
+    (labs.hematocrit !== undefined ? clamp((hctOptimal - labs.hematocrit) * 0.05, -0.3, 2) : 0);
+  // Тромбоциты: отклонение от нормы 150–400 (центр 275, полуширина 125) в обе стороны вредно.
+  const plateletPressure =
+    labs.platelets !== undefined ? clamp((Math.abs(labs.platelets - 275) - 125) * 0.006, 0, 1.5) : 0;
+  const hematologic = clamp(anemiaPressure + plateletPressure * 0.5, -0.5, 3);
+
+  // Кардиомаркеры повреждения миокарда: вч-тропонин (норма <14 нг/л), NT-proBNP (<125 пг/мл).
+  const cardiac = clamp(
+    (prot.troponin !== undefined ? clamp((prot.troponin - 14) * 0.03, 0, 2) : 0) +
+      (prot.ntProBnp !== undefined ? clamp((prot.ntProBnp - 125) * 0.0025, 0, 2) : 0),
+    0,
+    3,
+  );
+
+  // Артериальное давление: систолическое + диастолическое (усредняем при наличии обоих).
+  const sbpPressure = labs.systolicBp !== undefined ? pressure(labs.systolicBp, 120, 0.03) : undefined;
+  const dbpPressure = labs.diastolicBp !== undefined ? pressure(labs.diastolicBp, 80, 0.045) : undefined;
+  const bloodPressure =
+    sbpPressure !== undefined && dbpPressure !== undefined
+      ? clamp((sbpPressure + dbpPressure) / 2, -1, 3)
+      : (sbpPressure ?? dbpPressure ?? 0);
+
   const signals: ModalitySignals = {
     age: clamp((p.ageYears - 30) / 22, -1, 3),
     bioAgeAccel,
-    bloodPressure: pressure(labs.systolicBp, 120, 0.03),
-    lipids: clamp(pressure(labs.ldl, 2.6, 0.5) + pressure(meta.triglycerides, 1.5, 0.25) - protLow(labs.hdl, 1.4, 0.5), -1, 3),
+    bloodPressure,
+    lipids: clamp(
+      pressure(labs.ldl, 2.6, 0.5) +
+        pressure(labs.totalChol, 5.0, 0.2) +
+        pressure(meta.triglycerides, 1.5, 0.25) -
+        protLow(labs.hdl, 1.4, 0.5),
+      -1,
+      3,
+    ),
     glycemia: clamp(pressure(labs.hba1c, 5.4, 0.7) + pressure(meta.glucoseFasting, 5.5, 0.4) + pressure(meta.homaIr, 2, 0.2), -1, 3),
     adiposity: pressure(labs.bmi, 23, 0.12),
-    renal: labs.egfr !== undefined ? clamp((95 - labs.egfr) * 0.03, -0.3, 3) : 0,
+    renal: clamp(
+      (labs.egfr !== undefined ? (95 - labs.egfr) * 0.03 : 0) +
+        (meta.uricAcid !== undefined ? clamp((meta.uricAcid - 360) * 0.002, -0.2, 1) : 0),
+      -0.3,
+      3,
+    ),
     hepatic: clamp(pressure(labs.alt, 30, 0.03) + protective(p.imaging?.hepaticSteatosis, -0.8), -0.3, 3),
+    hematologic,
+    cardiac,
     inflammation,
     immune: clamp(pressure(labs.wbc, 6, 0.08), -0.5, 2),
     genomicLoad,
@@ -150,7 +203,14 @@ export function normalizeProfile(p: HealthProfile): NormalizedProfile {
       -0.6,
       1.5,
     ),
-    autonomic: clamp(pressure(wear.restingHr, 60, 0.03) + (wear.hrv !== undefined ? (50 - wear.hrv) * 0.015 : 0), -0.5, 2),
+    autonomic: clamp(
+      pressure(wear.restingHr, 60, 0.03) +
+        (wear.hrv !== undefined ? (50 - wear.hrv) * 0.015 : 0) +
+        (wear.spo2 !== undefined ? clamp((96 - wear.spo2) * 0.1, -0.2, 1.5) : 0) +
+        (wear.vo2max !== undefined ? clamp((35 - wear.vo2max) * 0.02, -0.6, 1) : 0),
+      -0.5,
+      2,
+    ),
   };
 
   // Полнота: доля заполненных модальностей из 12 ключевых.

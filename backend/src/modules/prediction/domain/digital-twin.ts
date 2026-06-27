@@ -61,9 +61,9 @@ const round1 = (v: number): number => Math.round(v * 10) / 10;
 
 /** Какие сигналы тянут систему вниз (вес — сила влияния). */
 const SYSTEM_DRIVERS: Record<OrganSystem, Partial<Record<keyof ModalitySignals, number>>> = {
-  cardiovascular: { bloodPressure: 1.0, lipids: 0.9, smoking: 0.8, glycemia: 0.5, autonomic: 0.5, inflammation: 0.4, age: 0.6 },
+  cardiovascular: { bloodPressure: 1.0, lipids: 0.9, smoking: 0.8, glycemia: 0.5, autonomic: 0.5, inflammation: 0.4, age: 0.6, cardiac: 0.7 },
   endocrine: { glycemia: 1.2, adiposity: 0.9, inactivity: 0.5, diet: 0.4 },
-  immune: { inflammation: 1.0, immune: 0.8, microbiome: 0.5, age: 0.4, stress: 0.4 },
+  immune: { inflammation: 1.0, immune: 0.8, microbiome: 0.5, age: 0.4, stress: 0.4, hematologic: 0.4 },
   nervous: { age: 0.8, bloodPressure: 0.4, glycemia: 0.4, stress: 0.6, sleep: 0.5, social: 0.5, genomicLoad: 0.4 },
   microbiome: { microbiome: 1.2, diet: 0.7, inflammation: 0.4 },
   metabolic: { adiposity: 1.0, glycemia: 1.0, lipids: 0.6, inactivity: 0.6, diet: 0.5 },

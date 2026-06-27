@@ -48,6 +48,8 @@ const MODALITY_OF: Record<string, string> = {
   adiposity: 'Антропометрия',
   renal: 'Лаборатория',
   hepatic: 'Лаборатория',
+  hematologic: 'Лаборатория',
+  cardiac: 'Протеомика',
   inflammation: 'Протеомика',
   immune: 'Иммунология',
   microbiome: 'Микробиом',

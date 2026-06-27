@@ -50,17 +50,17 @@ export const DISEASES: DiseaseDef[] = [
   {
     icd11: 'BA40', id: 'ihd', name: 'Ишемическая болезнь сердца', category: 'CARDIOVASCULAR',
     lifetimeBaseline: 32, baselineOnsetAge: 64, sexFactor: 1.4, minAge: 30,
-    weights: { age: 4.2, bloodPressure: 2.4, lipids: 2.8, smoking: 2.6, glycemia: 1.4, inflammation: 1.2, genomicLoad: 1.6, inactivity: 0.9, adiposity: 0.7, autonomic: 0.6 },
+    weights: { age: 4.2, bloodPressure: 2.4, lipids: 2.8, smoking: 2.6, glycemia: 1.4, inflammation: 1.2, genomicLoad: 1.6, inactivity: 0.9, adiposity: 0.7, autonomic: 0.6, cardiac: 1.2 },
   },
   {
     icd11: '8B20', id: 'stroke', name: 'Инсульт', category: 'CARDIOVASCULAR',
     lifetimeBaseline: 18, baselineOnsetAge: 70, sexFactor: 1.1, minAge: 35,
-    weights: { age: 4.0, bloodPressure: 3.2, smoking: 1.6, glycemia: 1.2, lipids: 1.0, genomicLoad: 1.2, inflammation: 0.8 },
+    weights: { age: 4.0, bloodPressure: 3.2, smoking: 1.6, glycemia: 1.2, lipids: 1.0, genomicLoad: 1.2, inflammation: 0.8, cardiac: 0.6 },
   },
   {
     icd11: 'BD10', id: 'hf', name: 'Хроническая сердечная недостаточность', category: 'CARDIOVASCULAR',
     lifetimeBaseline: 20, baselineOnsetAge: 72, sexFactor: 1.1, minAge: 40,
-    weights: { age: 3.6, bloodPressure: 2.0, glycemia: 1.4, adiposity: 1.0, inflammation: 1.0, autonomic: 1.2 },
+    weights: { age: 3.6, bloodPressure: 2.0, glycemia: 1.4, adiposity: 1.0, inflammation: 1.0, autonomic: 1.2, cardiac: 2.4 },
   },
   {
     icd11: 'BA00.Z', id: 'htn', name: 'Артериальная гипертензия (субклин.)', category: 'CARDIOVASCULAR',
@@ -204,7 +204,7 @@ export const DISEASES: DiseaseDef[] = [
   {
     icd11: '3A00', id: 'anemia', name: 'Хроническая анемия', category: 'HEMATOLOGIC',
     lifetimeBaseline: 12, baselineOnsetAge: 55, sexFactor: 0.7, minAge: 12,
-    weights: { immune: 1.2, renal: 1.4, diet: 1.2, inflammation: 1.0, age: 1.0 },
+    weights: { hematologic: 3.5, immune: 1.2, renal: 1.4, diet: 1.2, inflammation: 1.0, age: 1.0 },
   },
 
   // ---------------- Редкие / орфанные ----------------

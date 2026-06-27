@@ -12,6 +12,7 @@ import { userRoutes } from './modules/users/user.routes.js';
 import { organizationRoutes } from './modules/organizations/organization.routes.js';
 import { patientRoutes } from './modules/patients/patient.routes.js';
 import { predictionRoutes } from './modules/prediction/prediction.routes.js';
+import { coxRoutes } from './modules/cox/cox.routes.js';
 import { analyticsRoutes } from './modules/analytics/analytics.routes.js';
 import { billingRoutes } from './modules/billing/billing.routes.js';
 import { auditRoutes } from './modules/audit/audit.routes.js';
@@ -47,6 +48,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(organizationRoutes);
   await app.register(patientRoutes);
   await app.register(predictionRoutes);
+  await app.register(coxRoutes);
   await app.register(analyticsRoutes);
   await app.register(billingRoutes);
   await app.register(auditRoutes);
