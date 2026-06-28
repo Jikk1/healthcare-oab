@@ -8,6 +8,7 @@
    и ширину доверительных интервалов, а не ломает расчёт.
    ============================================================ */
 import { resolveRange, fieldStatus, BIOMARKER_MAP, mapBiomarkers } from './lib/clinical.js';
+import { escapeHtml } from './lib/format.js';
 
 (() => {
   'use strict';
@@ -394,7 +395,7 @@ import { resolveRange, fieldStatus, BIOMARKER_MAP, mapBiomarkers } from './lib/c
       const items = (res && res.items) || [];
       const sel = $('patientSelect');
       sel.innerHTML = items.length
-        ? items.map((p) => `<option value="${p.id}">${p.fullName} · ${p.mrn}</option>`).join('')
+        ? items.map((p) => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.fullName)} · ${escapeHtml(p.mrn)}</option>`).join('')
         : '<option value="">— нет доступных карт —</option>';
       $('doctorHint').textContent = '● ' + items.length + ' карт';
       if (box) box.hidden = false;

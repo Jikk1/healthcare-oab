@@ -1,6 +1,8 @@
 /* ============================================================
    HealthCareOAB+ — Dashboard logic
    ============================================================ */
+import { escapeHtml } from './lib/format.js';
+
 (() => {
   'use strict';
 
@@ -80,7 +82,7 @@
     if (!toastWrap) return;
     const t = document.createElement('div');
     t.className = 'toast-item ' + type;
-    t.innerHTML = `<div class="toast-title">${title}</div><div class="toast-msg">${msg}</div>`;
+    t.innerHTML = `<div class="toast-title">${escapeHtml(title)}</div><div class="toast-msg">${escapeHtml(msg)}</div>`;
     toastWrap.appendChild(t);
     setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateX(30px)'; t.style.transition = 'all 0.3s'; }, 4200);
     setTimeout(() => t.remove(), 4700);
@@ -127,7 +129,7 @@
     tr.onclick = () => window.openProfile(p._id);
     if (mode === 'overview') {
       tr.innerHTML = `
-        <td><div class="p-avatar"><div class="ava">${p.initials}</div><div><div style="font-weight:500;font-size:13px">${p.name}</div><div style="font-size:11px;color:var(--text-3)">${p.id}</div></div></div></td>
+        <td><div class="p-avatar"><div class="ava">${escapeHtml(p.initials)}</div><div><div style="font-weight:500;font-size:13px">${escapeHtml(p.name)}</div><div style="font-size:11px;color:var(--text-3)">${escapeHtml(p.id)}</div></div></div></td>
         <td>${p.age}</td>
         <td><strong style="font-family:var(--font-mono);color:${riskCol(p.cv)}">${fmtPct(p.cv)}</strong></td>
         <td>${bioOverviewCell(p)}</td>
@@ -135,7 +137,7 @@
         <td><button class="btn btn-outline btn-sm" onclick="event.stopPropagation();openProfile('${p._id || ''}')">Открыть →</button></td>`;
     } else {
       tr.innerHTML = `
-        <td><div class="p-avatar"><div class="ava">${p.initials}</div><div><div style="font-weight:500;font-size:13px">${p.name}</div><div style="font-size:11px;color:var(--text-3)">${p.id}</div></div></div></td>
+        <td><div class="p-avatar"><div class="ava">${escapeHtml(p.initials)}</div><div><div style="font-weight:500;font-size:13px">${escapeHtml(p.name)}</div><div style="font-size:11px;color:var(--text-3)">${escapeHtml(p.id)}</div></div></div></td>
         <td>${p.sex} · ${p.age}</td>
         <td><span style="font-family:var(--font-mono);color:${riskCol(p.cv)}">${fmtPct(p.cv)}</span></td>
         <td><span style="font-family:var(--font-mono);color:${riskCol(p.dm)}">${fmtPct(p.dm)}</span></td>
@@ -226,10 +228,10 @@
     ov.innerHTML = `
       <div class="dlg" role="dialog" aria-modal="true">
         <h3>${isEdit ? 'Редактирование карты' : 'Новый пациент'}</h3>
-        <div class="dlg-sub">${isEdit ? 'MRN ' + (patient?.mrn || patient?.id || '') : 'Заполните демографические данные карты'}</div>
+        <div class="dlg-sub">${isEdit ? 'MRN ' + escapeHtml(patient?.mrn || patient?.id || '') : 'Заполните демографические данные карты'}</div>
         <div class="dlg-row">
-          <div class="dlg-field"><label>Фамилия</label><input id="fLast" value="${patient?.lastName || ''}" maxlength="120" /></div>
-          <div class="dlg-field"><label>Имя</label><input id="fFirst" value="${patient?.firstName || ''}" maxlength="120" /></div>
+          <div class="dlg-field"><label>Фамилия</label><input id="fLast" value="${escapeHtml(patient?.lastName || '')}" maxlength="120" /></div>
+          <div class="dlg-field"><label>Имя</label><input id="fFirst" value="${escapeHtml(patient?.firstName || '')}" maxlength="120" /></div>
         </div>
         <div class="dlg-row">
           <div class="dlg-field"><label>Пол</label><select id="fSex">${SEX_OPTS.map(([v, l]) => `<option value="${v}" ${patient?.sexCode === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
@@ -334,7 +336,7 @@
       setText('profileName', p.fullName);
       setText('profileAvatar', p.initials);
       const meta = document.getElementById('profileMeta');
-      if (meta) meta.innerHTML = `${SEX_PROFILE[p.sex] || ''} · ${p.ageYears} лет · MRN: ${p.mrn}`;
+      if (meta) meta.innerHTML = `${SEX_PROFILE[p.sex] || ''} · ${Number(p.ageYears)} лет · MRN: ${escapeHtml(p.mrn)}`;
 
       let a = null;
       try { a = await api.patients.latestAssessment(id); } catch { a = null; }
@@ -398,25 +400,25 @@
       const active = (sub.status || '').toUpperCase() === 'ACTIVE';
       subEl.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
         <div>
-          <div style="font-size:22px;font-weight:700">${sub.plan || '—'}</div>
+          <div style="font-size:22px;font-weight:700">${escapeHtml(sub.plan || '—')}</div>
           <div style="font-size:12px;color:var(--text-3)">Пациентов: ${limitTxt(sub.patientLimit)} · мест: ${limitTxt(sub.seatLimit)}</div>
         </div>
-        <span class="risk-badge ${active ? 'risk-low' : 'risk-medium'}">${sub.status || ''}</span>
+        <span class="risk-badge ${active ? 'risk-low' : 'risk-medium'}">${escapeHtml(sub.status || '')}</span>
       </div>`;
     }
     if (plansEl) plansEl.innerHTML = (plans || []).map((pl) =>
       `<div style="display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid var(--border)">
         <div>
-          <div style="font-weight:600">${pl.plan}</div>
+          <div style="font-weight:600">${escapeHtml(pl.plan)}</div>
           <div style="font-size:11px;color:var(--text-3)">${pl.monthlyCents ? money(pl.monthlyCents) + '/мес' : 'по договору'} · до ${limitTxt(pl.patientLimit)} пациентов</div>
         </div>
-        <button class="btn btn-outline btn-sm" onclick="changePlan('${pl.plan}')">Выбрать</button>
+        <button class="btn btn-outline btn-sm" onclick="changePlan('${encodeURIComponent(pl.plan)}')">Выбрать</button>
       </div>`).join('') || '<div style="color:var(--text-3)">Нет тарифов</div>';
     if (invEl) invEl.innerHTML = (invoices || []).length
       ? invoices.map((iv) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);font-size:13px">
-          <span>${iv.number || ''}</span>
+          <span>${escapeHtml(iv.number || '')}</span>
           <span style="font-family:var(--font-mono)">${money(iv.amountCents)}</span>
-          <span class="risk-badge ${(iv.status || '').toUpperCase() === 'PAID' ? 'risk-low' : 'risk-medium'}">${iv.status || ''}</span>
+          <span class="risk-badge ${(iv.status || '').toUpperCase() === 'PAID' ? 'risk-low' : 'risk-medium'}">${escapeHtml(iv.status || '')}</span>
         </div>`).join('')
       : '<div style="color:var(--text-3)">Счетов пока нет</div>';
   };
@@ -442,10 +444,10 @@
       body.innerHTML = items.length
         ? items.map((l) => `<tr>
             <td style="font-family:var(--font-mono);font-size:11px">${new Date(l.createdAt).toLocaleString('ru-RU')}</td>
-            <td>${l.action || ''}</td>
-            <td style="font-size:12px;color:var(--text-3)">${l.resourceType || ''}${l.resourceId ? ' · ' + String(l.resourceId).slice(0, 8) : ''}</td>
-            <td style="font-size:12px">${l.actorUserId ? String(l.actorUserId).slice(0, 8) : '—'}</td>
-            <td style="font-family:var(--font-mono);font-size:11px">${l.ipAddress || '—'}</td>
+            <td>${escapeHtml(l.action || '')}</td>
+            <td style="font-size:12px;color:var(--text-3)">${escapeHtml(l.resourceType || '')}${l.resourceId ? ' · ' + escapeHtml(String(l.resourceId).slice(0, 8)) : ''}</td>
+            <td style="font-size:12px">${l.actorUserId ? escapeHtml(String(l.actorUserId).slice(0, 8)) : '—'}</td>
+            <td style="font-family:var(--font-mono);font-size:11px">${escapeHtml(l.ipAddress || '—')}</td>
           </tr>`).join('')
         : '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-3)">Записей нет</td></tr>';
     } catch (e) {
@@ -497,10 +499,10 @@
       <div class="rec-card ${r.cls}">
         <div class="rec-ico">${r.icon}</div>
         <div>
-          <div class="rec-title">${r.title}</div>
-          <div class="rec-desc">${r.desc}</div>
+          <div class="rec-title">${escapeHtml(r.title)}</div>
+          <div class="rec-desc">${escapeHtml(r.desc)}</div>
         </div>
-        <span class="rec-impact">${r.impact}</span>
+        <span class="rec-impact">${escapeHtml(r.impact)}</span>
       </div>`).join('');
   };
 
