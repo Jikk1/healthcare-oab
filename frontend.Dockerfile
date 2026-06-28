@@ -19,8 +19,9 @@ FROM nginxinc/nginx-unprivileged:1.27-alpine
 # files and fix ownership, then drop back.
 USER root
 
-# Site config (listens on :8081, see nginx.conf).
+# Site config (listens on :8081, see nginx.conf) + shared security headers.
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY security-headers.conf /etc/nginx/security-headers.conf
 
 # Built bundle. /config.js (from public/) ships inside dist and is overwritten
 # at container start by the entrypoint below.
