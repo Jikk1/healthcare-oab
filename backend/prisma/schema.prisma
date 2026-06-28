@@ -429,6 +429,10 @@ model Webhook {
 
 model AuditLog {
   id             String   @id @default(cuid())
+  // Strictly monotonic insert order — the chain is ordered by `seq`, not by
+  // `createdAt` (which has only millisecond precision and ties under bursts,
+  // making both the prev-lookup and verifyChain non-deterministic).
+  seq            Int      @default(autoincrement())
   organizationId String?
   actorUserId    String?
   action         String // e.g. patient.read, auth.login, risk.compute
@@ -446,6 +450,7 @@ model AuditLog {
   organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   actor        User?         @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
 
+  @@index([organizationId, seq])
   @@index([organizationId, createdAt])
   @@index([actorUserId, createdAt])
   @@index([action])
