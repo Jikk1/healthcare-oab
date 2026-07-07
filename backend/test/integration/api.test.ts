@@ -12,6 +12,7 @@ const run = process.env.RUN_INTEGRATION ? describe : describe.skip;
 run('API integration (happy path)', () => {
   let app: FastifyInstance;
   let accessToken: string;
+  let patientId: string;
   const email = `it-${Date.now()}@example.test`;
   const password = 'Integration-Test-Pass-2026';
 
@@ -73,7 +74,7 @@ run('API integration (happy path)', () => {
       payload: { firstName: 'Иван', lastName: 'Тестов', sex: 'MALE', ageYears: 57 },
     });
     expect(created.statusCode).toBe(201);
-    const patientId = created.json().data.id;
+    patientId = created.json().data.id;
 
     const assessed = await app.inject({
       method: 'POST',
@@ -99,6 +100,56 @@ run('API integration (happy path)', () => {
     expect(data.recommendations.length).toBeGreaterThan(0);
   });
 
+  it('reports: doctor stats with donut + monthly trend (period filter)', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/v1/reports/doctor/stats?period=year',
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const rep = res.json().data;
+    expect(rep.segments.length).toBe(4); // low/med/high/crit
+    expect(rep.period?.key).toBe('year');
+    expect(rep.trend.points.length).toBeGreaterThanOrEqual(1); // ≥1 ассессмент за период
+  });
+
+  it('reports: patient stats with domain donut + risk trend', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/v1/reports/patient/${patientId}/stats?period=all`,
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const rep = res.json().data;
+    expect(rep.segments.length).toBeGreaterThan(0);
+    expect(rep.trend.points.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('reports: doctor PDF export (no-store, %PDF)', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/v1/reports/doctor/export?format=pdf',
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toContain('application/pdf');
+    expect(res.headers['cache-control']).toContain('no-store');
+    expect(res.rawPayload.subarray(0, 5).toString('latin1')).toBe('%PDF-');
+  });
+
+  it('reports: patient Excel export (PHI role-gated, OWNER passes)', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/v1/reports/patient/${patientId}/export?format=xlsx`,
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toContain('spreadsheetml');
+    expect(res.headers['cache-control']).toContain('no-store');
+    expect(res.rawPayload.subarray(0, 2).toString('latin1')).toBe('PK'); // zip (xlsx)
+  });
+
+  // Экспорты пишут аудит-записи (report.*.export) — цепочка должна остаться целой.
   it('exposes a verifiable audit chain', async () => {
     const res = await app.inject({
       method: 'GET',
