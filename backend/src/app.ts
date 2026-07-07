@@ -16,6 +16,7 @@ import { coxRoutes } from './modules/cox/cox.routes.js';
 import { analyticsRoutes } from './modules/analytics/analytics.routes.js';
 import { billingRoutes } from './modules/billing/billing.routes.js';
 import { auditRoutes } from './modules/audit/audit.routes.js';
+import { reportsRoutes } from './modules/reports/reports.routes.js';
 
 /**
  * Composition root: builds a fully-wired Fastify instance without binding a
@@ -52,6 +53,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(analyticsRoutes);
   await app.register(billingRoutes);
   await app.register(auditRoutes);
+  await app.register(reportsRoutes);
 
   app.get('/', { config: { rateLimit: false } }, async () => ({
     name: config.SERVICE_NAME,
