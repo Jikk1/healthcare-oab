@@ -1,6 +1,10 @@
 /* ============================================================
    OmniRisk — UI страницы прогнозирования (predict.html)
    ============================================================ */
+import './lib/telemetry.js';
+import { observeDynamicStyles } from './lib/dom.js';
+import { initI18n } from './lib/i18n.js';
+
 (() => {
   'use strict';
   const { runOmniRisk, simulateIntervention, CATEGORY_LABELS } = window.OmniRisk;
@@ -86,7 +90,7 @@
     ];
     $('kpis').innerHTML = kpis.map((k) => `
       <div class="or-kpi">
-        <div class="v" style="color:${k.color}">${k.v}</div>
+        <div class="v" data-sty="color:${k.color}">${k.v}</div>
         <div class="l">${k.l}</div>
         ${k.hint ? `<div class="hint">${k.hint}</div>` : ''}
       </div>`).join('');
@@ -114,13 +118,13 @@
     $('diseaseList').innerHTML = list.map((p) => {
       const prob = probAt(p, state.horizon), ci = ciAt(p, state.horizon), col = levelColor(p.riskLevel);
       const onset = p.onsetAgeEstimate ? `дебют ~${p.onsetAgeEstimate} лет · ` : '';
-      return `<div class="or-disease" data-disease="${p.id}" style="cursor:pointer">
+      return `<div class="or-disease" data-disease="${p.id}" data-sty="cursor:pointer">
         <div>
-          <div class="nm">${p.name} <span class="risk-badge" style="background:${col}22;color:${col};border:1px solid ${col}55">${levelLabel[p.riskLevel]}</span></div>
+          <div class="nm">${p.name} <span class="risk-badge" data-sty="background:${col}22;color:${col};border:1px solid ${col}55">${levelLabel[p.riskLevel]}</span></div>
           <div class="meta">${p.icd11} · ${CATEGORY_LABELS[p.category]} · ${onset}RR ${p.relativeRisk}× · CI ${ci[0]}–${ci[1]}%</div>
         </div>
-        <div class="or-prob" style="color:${riskColor(prob)}">${prob}%</div>
-        <div class="or-bar"><i style="width:${Math.min(100, prob)}%;background:${riskColor(prob)}"></i></div>
+        <div class="or-prob" data-sty="color:${riskColor(prob)}">${prob}%</div>
+        <div class="or-bar"><i data-sty="width:${Math.min(100, prob)}%;background:${riskColor(prob)}"></i></div>
       </div>`;
     }).join('');
     document.querySelectorAll('#diseaseList .or-disease').forEach((row) => row.addEventListener('click', () => {
@@ -174,24 +178,24 @@
     $('shapList').innerHTML = top.map((s) => {
       const pos = s.value >= 0, w = Math.abs(s.value) / max * 50, col = pos ? COLORS.rose : COLORS.mint;
       return `<div class="or-shaprow">
-        <div title="${s.feature}">${s.feature}${s.modifiable ? '' : ' <span style="color:var(--text-3);font-size:10px">(немод.)</span>'}</div>
-        <div class="track"><div class="fill" style="${pos ? `left:50%;width:${w}%` : `right:50%;width:${w}%`};background:${col}"></div></div>
-        <div class="val" style="color:${col}">${pos ? '+' : ''}${s.value.toFixed(2)}</div>
+        <div title="${s.feature}">${s.feature}${s.modifiable ? '' : ' <span data-sty="color:var(--text-3);font-size:10px">(немод.)</span>'}</div>
+        <div class="track"><div class="fill" data-sty="${pos ? `left:50%;width:${w}%` : `right:50%;width:${w}%`};background:${col}"></div></div>
+        <div class="val" data-sty="color:${col}">${pos ? '+' : ''}${s.value.toFixed(2)}</div>
       </div>`;
     }).join('');
 
     $('attList').innerHTML = exp.attention.slice(0, 8).map((a) => `
       <div class="or-att-row">
         <div>${a.modality}</div>
-        <div class="track"><i style="width:${Math.round(a.weight * 100)}%"></i></div>
-        <div style="font-family:var(--font-mono);text-align:right">${Math.round(a.weight * 100)}%</div>
+        <div class="track"><i data-sty="width:${Math.round(a.weight * 100)}%"></i></div>
+        <div data-sty="font-family:var(--font-mono);text-align:right">${Math.round(a.weight * 100)}%</div>
       </div>`).join('');
 
     const causal = r.causal[dis.id];
     if (causal) {
       const topDrivers = causal.drivers.filter((d) => d.causal).slice(0, 3).map((d) => d.label).join(' → ');
       $('causalChain').innerHTML = `<b>Причинная цепочка:</b> ${topDrivers || 'основные факторы'} → ${dis.name}. ` +
-        `Модифицируемая доля риска: <b style="color:${COLORS.mint}">${causal.modifiableSharePct}%</b>.`;
+        `Модифицируемая доля риска: <b data-sty="color:${COLORS.mint}">${causal.modifiableSharePct}%</b>.`;
     }
   }
 
@@ -215,14 +219,14 @@
     const top = delta.perDisease.slice(0, 6);
     const sign = (v) => (v >= 0 ? '+' : '') + v;
     $('interventionResult').innerHTML = `
-      <div class="or-kpis" style="margin-bottom:16px">
-        <div class="or-kpi"><div class="v" style="color:${delta.healthIndexDelta >= 0 ? COLORS.mint : COLORS.rose}">${sign(delta.healthIndexDelta)}</div><div class="l">Индекс здоровья</div></div>
-        <div class="or-kpi"><div class="v" style="color:${COLORS.cyan}">${sign(delta.lifeExpectancyDelta)} л</div><div class="l">Ожид. продолж. жизни</div></div>
+      <div class="or-kpis" data-sty="margin-bottom:16px">
+        <div class="or-kpi"><div class="v" data-sty="color:${delta.healthIndexDelta >= 0 ? COLORS.mint : COLORS.rose}">${sign(delta.healthIndexDelta)}</div><div class="l">Индекс здоровья</div></div>
+        <div class="or-kpi"><div class="v" data-sty="color:${COLORS.cyan}">${sign(delta.lifeExpectancyDelta)} л</div><div class="l">Ожид. продолж. жизни</div></div>
       </div>
       ${top.map((d) => `<div class="or-disease">
         <div><div class="nm">${d.name}</div><div class="meta">10-летний риск</div></div>
-        <div class="or-prob"><span style="color:${COLORS.rose}">${d.before}%</span> <span style="color:var(--text-3)">→</span> <span style="color:${COLORS.mint}">${d.after}%</span></div>
-        <div class="or-bar"><i style="width:${Math.min(100, d.reductionPct)}%;background:${COLORS.mint}"></i></div>
+        <div class="or-prob"><span data-sty="color:${COLORS.rose}">${d.before}%</span> <span data-sty="color:var(--text-3)">→</span> <span data-sty="color:${COLORS.mint}">${d.after}%</span></div>
+        <div class="or-bar"><i data-sty="width:${Math.min(100, d.reductionPct)}%;background:${COLORS.mint}"></i></div>
       </div>`).join('') || '<div class="cap">Заметного эффекта на основные риски нет.</div>'}`;
   }
 
@@ -289,6 +293,8 @@
 
   /* ---------- События ---------- */
   function init() {
+    observeDynamicStyles(); // применяет data-sty к innerHTML-рендерам (CSP: без style-src 'unsafe-inline')
+    initI18n(); // переключатель RU/EN (переведены шапка и навигация; поля/результаты — RU)
     syncLabels();
     // Слайдеры
     document.querySelectorAll('#inputPanel input[type=range]').forEach((el) => {
@@ -304,7 +310,7 @@
         if (!api) { setComputeHint('· API недоступен'); return; }
         setComputeHint('· проверяю сессию…');
         const ok = await api.auth.refresh().catch(() => false);
-        if (!ok) { setComputeHint('· <a href="login.html?redirect=predict.html" style="color:var(--cyan)">войти</a> для серверного режима', true); return; }
+        if (!ok) { setComputeHint('· <a href="login.html?redirect=predict.html" data-sty="color:var(--cyan)">войти</a> для серверного режима', true); return; }
       }
       state.source = src;
       syncSeg('computeSource', 'src', src);

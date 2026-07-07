@@ -1,7 +1,10 @@
 /* ============================================================
    HealthCareOAB+ — Dashboard logic
    ============================================================ */
+import './lib/telemetry.js';
 import { escapeHtml } from './lib/format.js';
+import { observeDynamicStyles } from './lib/dom.js';
+import { renderDonutStats, renderTrendLine } from './lib/donut.js';
 
 (() => {
   'use strict';
@@ -36,6 +39,8 @@ import { escapeHtml } from './lib/format.js';
   // Распределение по уровням риска [низкий, умеренный, высокий, критический].
   // Демо-значения; заменяются агрегатом из /v1/analytics/risk-distribution.
   let riskDistData = [812, 286, 126, 23];
+  // Текущая открытая карта (для экспорта отчёта пациента).
+  let currentProfileId = null;
 
   const levelLabel = { critical: 'Критический', high: 'Высокий', medium: 'Умеренный', low: 'Низкий' };
   const levelClass = { critical: 'risk-critical', high: 'risk-high', medium: 'risk-medium', low: 'risk-low' };
@@ -67,7 +72,7 @@ import { escapeHtml } from './lib/format.js';
     document.querySelectorAll('.page-panel').forEach((el) => el.classList.remove('active'));
     document.getElementById('page-' + page)?.classList.add('active');
     document.querySelectorAll('.nav-item').forEach((el) => el.classList.remove('active'));
-    const matches = [...document.querySelectorAll('.nav-item')].filter((el) => el.getAttribute('onclick')?.includes("'" + page + "'"));
+    const matches = [...document.querySelectorAll('.nav-item')].filter((el) => el.dataset.page === page);
     matches.forEach((m) => m.classList.add('active'));
     if (topbarTitle) topbarTitle.textContent = PAGE_TITLES[page] || 'Дашборд';
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -117,35 +122,37 @@ import { escapeHtml } from './lib/format.js';
   const bioOverviewCell = (p) =>
     p.bio == null
       ? '—'
-      : `${p.bio} <span style="color:var(--amber);font-family:var(--font-mono);font-size:11px">+${p.bio - p.age}</span>`;
+      : `${p.bio} <span data-sty="color:var(--amber);font-family:var(--font-mono);font-size:11px">+${p.bio - p.age}</span>`;
   const bioFullCell = (p) =>
     p.bio == null
       ? '—'
-      : `${p.bio} <span style="color:var(--text-3);font-family:var(--font-mono);font-size:11px">/${p.age}</span>`;
+      : `${p.bio} <span data-sty="color:var(--text-3);font-family:var(--font-mono);font-size:11px">/${p.age}</span>`;
 
   const patientRow = (p, mode = 'full') => {
     const lvlClass = levelClass[p.level] || 'risk-low';
     const tr = document.createElement('tr');
-    tr.onclick = () => window.openProfile(p._id);
+    // Клик по строке открывает профиль, но не перехватывает клики по кнопкам
+    // действий (у них своё делегирование по data-action — см. ниже).
+    tr.onclick = (e) => { if (e.target.closest('[data-action]')) return; window.openProfile(p._id); };
     if (mode === 'overview') {
       tr.innerHTML = `
-        <td><div class="p-avatar"><div class="ava">${escapeHtml(p.initials)}</div><div><div style="font-weight:500;font-size:13px">${escapeHtml(p.name)}</div><div style="font-size:11px;color:var(--text-3)">${escapeHtml(p.id)}</div></div></div></td>
+        <td><div class="p-avatar"><div class="ava">${escapeHtml(p.initials)}</div><div><div data-sty="font-weight:500;font-size:13px">${escapeHtml(p.name)}</div><div data-sty="font-size:11px;color:var(--text-3)">${escapeHtml(p.id)}</div></div></div></td>
         <td>${p.age}</td>
-        <td><strong style="font-family:var(--font-mono);color:${riskCol(p.cv)}">${fmtPct(p.cv)}</strong></td>
+        <td><strong data-sty="font-family:var(--font-mono);color:${riskCol(p.cv)}">${fmtPct(p.cv)}</strong></td>
         <td>${bioOverviewCell(p)}</td>
         <td><span class="risk-badge ${lvlClass}">${levelLabel[p.level] || p.level}</span></td>
-        <td><button class="btn btn-outline btn-sm" onclick="event.stopPropagation();openProfile('${p._id || ''}')">Открыть →</button></td>`;
+        <td><button class="btn btn-outline btn-sm" data-action="openProfile" data-id="${p._id || ''}">Открыть →</button></td>`;
     } else {
       tr.innerHTML = `
-        <td><div class="p-avatar"><div class="ava">${escapeHtml(p.initials)}</div><div><div style="font-weight:500;font-size:13px">${escapeHtml(p.name)}</div><div style="font-size:11px;color:var(--text-3)">${escapeHtml(p.id)}</div></div></div></td>
+        <td><div class="p-avatar"><div class="ava">${escapeHtml(p.initials)}</div><div><div data-sty="font-weight:500;font-size:13px">${escapeHtml(p.name)}</div><div data-sty="font-size:11px;color:var(--text-3)">${escapeHtml(p.id)}</div></div></div></td>
         <td>${p.sex} · ${p.age}</td>
-        <td><span style="font-family:var(--font-mono);color:${riskCol(p.cv)}">${fmtPct(p.cv)}</span></td>
-        <td><span style="font-family:var(--font-mono);color:${riskCol(p.dm)}">${fmtPct(p.dm)}</span></td>
+        <td><span data-sty="font-family:var(--font-mono);color:${riskCol(p.cv)}">${fmtPct(p.cv)}</span></td>
+        <td><span data-sty="font-family:var(--font-mono);color:${riskCol(p.dm)}">${fmtPct(p.dm)}</span></td>
         <td>${bioFullCell(p)}</td>
         <td><span class="risk-badge ${lvlClass}">${levelLabel[p.level] || p.level}</span></td>
-        <td style="white-space:nowrap">
-          <button class="btn btn-ghost btn-sm" title="Редактировать" onclick="event.stopPropagation();editPatient('${p._id || ''}')">✎</button>
-          <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openProfile('${p._id || ''}')">→</button>
+        <td data-sty="white-space:nowrap">
+          <button class="btn btn-ghost btn-sm" title="Редактировать" data-action="editPatient" data-id="${p._id || ''}">✎</button>
+          <button class="btn btn-ghost btn-sm" data-action="openProfile" data-id="${p._id || ''}">→</button>
         </td>`;
     }
     return tr;
@@ -167,7 +174,7 @@ import { escapeHtml } from './lib/format.js';
       rows = rows.filter((p) => p.name.toLowerCase().includes(q) || p.id.toLowerCase().includes(q));
     }
     if (!rows.length) {
-      patientsBody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-3)">Пациенты не найдены</td></tr>`;
+      patientsBody.innerHTML = `<tr><td colspan="7" data-sty="text-align:center;padding:40px;color:var(--text-3)">Пациенты не найдены</td></tr>`;
       return;
     }
     rows.forEach((p) => patientsBody.appendChild(patientRow(p, 'full')));
@@ -240,7 +247,7 @@ import { escapeHtml } from './lib/format.js';
         ${isEdit ? '' : '<div class="dlg-field"><label>MRN (необязательно)</label><input id="fMrn" placeholder="напр. P-12345" maxlength="32" /></div>'}
         <div class="dlg-err" id="fErr"></div>
         <div class="dlg-actions">
-          ${isEdit ? '<button class="btn btn-outline btn-sm" id="fArchive" style="color:var(--rose);border-color:var(--rose)">Архивировать</button>' : ''}
+          ${isEdit ? '<button class="btn btn-outline btn-sm" id="fArchive" data-sty="color:var(--rose);border-color:var(--rose)">Архивировать</button>' : ''}
           <div class="right">
             <button class="btn btn-ghost btn-sm" id="fCancel">Отмена</button>
             <button class="btn btn-primary btn-sm" id="fSave">${isEdit ? 'Сохранить' : 'Создать'}</button>
@@ -329,6 +336,7 @@ import { escapeHtml } from './lib/format.js';
 
   const openPatientProfile = async (id) => {
     window.switchPage('profile');
+    currentProfileId = id;
     const api = window.HCApi;
     const setText = (idr, t) => { const e = document.getElementById(idr); if (e) e.textContent = t; };
     try {
@@ -361,14 +369,16 @@ import { escapeHtml } from './lib/format.js';
           ['СД2 (10л)', a.dmRisk], ['Онко (10л)', a.oncoRisk], ['ХБП (10л)', a.ckdRisk],
         ].filter(([, v]) => v != null);
         if (metrics) metrics.innerHTML = rows.map(([nm, v]) =>
-          `<div class="bio-metric-row"><span class="bio-metric-label">${nm}</span><span class="bio-metric-value" style="color:${A.riskColor(v)}">${Number(v).toFixed(1)}%</span></div>`).join('');
+          `<div class="bio-metric-row"><span class="bio-metric-label">${nm}</span><span class="bio-metric-value" data-sty="color:${A.riskColor(v)}">${Number(v).toFixed(1)}%</span></div>`).join('');
 
         const fr = document.getElementById('profileFinalRisk');
         if (fr && a.miRisk != null) fr.innerHTML = `${Number(a.miRisk).toFixed(1)}%`;
 
         renderShap(a.shapFactors);
+        renderPatientDonut(patientReportFromAssessment(a, p.fullName));
+        refreshPatientTrend(id); // динамика интегрального риска (сервер → история ассессментов)
       } else if (metrics) {
-        metrics.innerHTML = '<div style="color:var(--text-3);font-size:13px;padding:8px 0">Нет ассессментов. Внесите показатели на странице «Анализы».</div>';
+        metrics.innerHTML = '<div data-sty="color:var(--text-3);font-size:13px;padding:8px 0">Нет ассессментов. Внесите показатели на странице «Анализы».</div>';
       }
 
       loadRecommendations(id);
@@ -398,29 +408,29 @@ import { escapeHtml } from './lib/format.js';
     ]);
     if (sub && subEl) {
       const active = (sub.status || '').toUpperCase() === 'ACTIVE';
-      subEl.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
+      subEl.innerHTML = `<div data-sty="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
         <div>
-          <div style="font-size:22px;font-weight:700">${escapeHtml(sub.plan || '—')}</div>
-          <div style="font-size:12px;color:var(--text-3)">Пациентов: ${limitTxt(sub.patientLimit)} · мест: ${limitTxt(sub.seatLimit)}</div>
+          <div data-sty="font-size:22px;font-weight:700">${escapeHtml(sub.plan || '—')}</div>
+          <div data-sty="font-size:12px;color:var(--text-3)">Пациентов: ${limitTxt(sub.patientLimit)} · мест: ${limitTxt(sub.seatLimit)}</div>
         </div>
         <span class="risk-badge ${active ? 'risk-low' : 'risk-medium'}">${escapeHtml(sub.status || '')}</span>
       </div>`;
     }
     if (plansEl) plansEl.innerHTML = (plans || []).map((pl) =>
-      `<div style="display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid var(--border)">
+      `<div data-sty="display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid var(--border)">
         <div>
-          <div style="font-weight:600">${escapeHtml(pl.plan)}</div>
-          <div style="font-size:11px;color:var(--text-3)">${pl.monthlyCents ? money(pl.monthlyCents) + '/мес' : 'по договору'} · до ${limitTxt(pl.patientLimit)} пациентов</div>
+          <div data-sty="font-weight:600">${escapeHtml(pl.plan)}</div>
+          <div data-sty="font-size:11px;color:var(--text-3)">${pl.monthlyCents ? money(pl.monthlyCents) + '/мес' : 'по договору'} · до ${limitTxt(pl.patientLimit)} пациентов</div>
         </div>
-        <button class="btn btn-outline btn-sm" onclick="changePlan('${encodeURIComponent(pl.plan)}')">Выбрать</button>
-      </div>`).join('') || '<div style="color:var(--text-3)">Нет тарифов</div>';
+        <button class="btn btn-outline btn-sm" data-action="changePlan" data-plan="${encodeURIComponent(pl.plan)}">Выбрать</button>
+      </div>`).join('') || '<div data-sty="color:var(--text-3)">Нет тарифов</div>';
     if (invEl) invEl.innerHTML = (invoices || []).length
-      ? invoices.map((iv) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);font-size:13px">
+      ? invoices.map((iv) => `<div data-sty="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);font-size:13px">
           <span>${escapeHtml(iv.number || '')}</span>
-          <span style="font-family:var(--font-mono)">${money(iv.amountCents)}</span>
+          <span data-sty="font-family:var(--font-mono)">${money(iv.amountCents)}</span>
           <span class="risk-badge ${(iv.status || '').toUpperCase() === 'PAID' ? 'risk-low' : 'risk-medium'}">${escapeHtml(iv.status || '')}</span>
         </div>`).join('')
-      : '<div style="color:var(--text-3)">Счетов пока нет</div>';
+      : '<div data-sty="color:var(--text-3)">Счетов пока нет</div>';
   };
 
   window.changePlan = async (plan) => {
@@ -443,29 +453,29 @@ import { escapeHtml } from './lib/format.js';
       const items = (res && res.items) || [];
       body.innerHTML = items.length
         ? items.map((l) => `<tr>
-            <td style="font-family:var(--font-mono);font-size:11px">${new Date(l.createdAt).toLocaleString('ru-RU')}</td>
+            <td data-sty="font-family:var(--font-mono);font-size:11px">${new Date(l.createdAt).toLocaleString('ru-RU')}</td>
             <td>${escapeHtml(l.action || '')}</td>
-            <td style="font-size:12px;color:var(--text-3)">${escapeHtml(l.resourceType || '')}${l.resourceId ? ' · ' + escapeHtml(String(l.resourceId).slice(0, 8)) : ''}</td>
-            <td style="font-size:12px">${l.actorUserId ? escapeHtml(String(l.actorUserId).slice(0, 8)) : '—'}</td>
-            <td style="font-family:var(--font-mono);font-size:11px">${escapeHtml(l.ipAddress || '—')}</td>
+            <td data-sty="font-size:12px;color:var(--text-3)">${escapeHtml(l.resourceType || '')}${l.resourceId ? ' · ' + escapeHtml(String(l.resourceId).slice(0, 8)) : ''}</td>
+            <td data-sty="font-size:12px">${l.actorUserId ? escapeHtml(String(l.actorUserId).slice(0, 8)) : '—'}</td>
+            <td data-sty="font-family:var(--font-mono);font-size:11px">${escapeHtml(l.ipAddress || '—')}</td>
           </tr>`).join('')
-        : '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-3)">Записей нет</td></tr>';
+        : '<tr><td colspan="5" data-sty="text-align:center;padding:30px;color:var(--text-3)">Записей нет</td></tr>';
     } catch (e) {
-      body.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-3)">${e?.code === 'FORBIDDEN' ? 'Доступ только для OWNER/ADMIN' : 'Не удалось загрузить журнал'}</td></tr>`;
+      body.innerHTML = `<tr><td colspan="5" data-sty="text-align:center;padding:30px;color:var(--text-3)">${e?.code === 'FORBIDDEN' ? 'Доступ только для OWNER/ADMIN' : 'Не удалось загрузить журнал'}</td></tr>`;
     }
   };
 
   window.verifyAudit = async () => {
     const out = document.getElementById('auditVerifyResult');
     if (!isServer()) { window.showToastDB?.('Нужен вход', 'Аудит доступен после входа', 'info'); return; }
-    if (out) out.innerHTML = '<span style="color:var(--text-3)">Проверка…</span>';
+    if (out) out.innerHTML = '<span data-sty="color:var(--text-3)">Проверка…</span>';
     try {
       const r = await window.HCApi.audit.verify(); // { ok, brokenAt? }
       if (out) out.innerHTML = r && r.ok
-        ? '<span style="color:var(--mint)">✓ Цепочка целостна — записи не изменялись</span>'
-        : `<span style="color:var(--rose)">✗ Нарушение целостности${r && r.brokenAt ? ' на записи ' + String(r.brokenAt).slice(0, 8) : ''}</span>`;
+        ? '<span data-sty="color:var(--mint)">✓ Цепочка целостна — записи не изменялись</span>'
+        : `<span data-sty="color:var(--rose)">✗ Нарушение целостности${r && r.brokenAt ? ' на записи ' + String(r.brokenAt).slice(0, 8) : ''}</span>`;
     } catch (e) {
-      if (out) out.innerHTML = `<span style="color:var(--rose)">${e?.code === 'FORBIDDEN' ? 'Доступ только для OWNER/ADMIN' : (e?.message || 'Ошибка проверки')}</span>`;
+      if (out) out.innerHTML = `<span data-sty="color:var(--rose)">${e?.code === 'FORBIDDEN' ? 'Доступ только для OWNER/ADMIN' : (e?.message || 'Ошибка проверки')}</span>`;
     }
   };
 
@@ -483,7 +493,7 @@ import { escapeHtml } from './lib/format.js';
   const renderRecs = (items) => {
     if (!recList) return;
     if (Array.isArray(items) && items.length === 0) {
-      recList.innerHTML = '<div style="color:var(--text-3);font-size:13px;padding:8px 0">Рекомендаций нет — добавьте ассессмент пациенту.</div>';
+      recList.innerHTML = '<div data-sty="color:var(--text-3);font-size:13px;padding:8px 0">Рекомендаций нет — добавьте ассессмент пациенту.</div>';
       return;
     }
     const cards = items && items.length
@@ -515,17 +525,157 @@ import { escapeHtml } from './lib/format.js';
   const renderRiskSummary = () => {
     if (!riskSummaryList) return;
     riskSummaryList.innerHTML = RISK_SUMMARY.map((r) => `
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:12px;border:1px solid var(--border);border-radius:10px;background:rgba(255,255,255,0.02)">
+      <div data-sty="display:flex;justify-content:space-between;align-items:center;padding:12px;border:1px solid var(--border);border-radius:10px;background:rgba(255,255,255,0.02)">
         <div>
-          <div style="font-size:13px">${r.name}</div>
-          <div style="font-size:11px;color:var(--text-3);font-family:var(--font-mono);margin-top:2px">CI: ${r.ci}${r.unit}</div>
+          <div data-sty="font-size:13px">${r.name}</div>
+          <div data-sty="font-size:11px;color:var(--text-3);font-family:var(--font-mono);margin-top:2px">CI: ${r.ci}${r.unit}</div>
         </div>
-        <div style="font-family:var(--font-mono);font-weight:700;color:${A.riskColor(r.value)};font-size:16px">${r.value}${r.unit}</div>
+        <div data-sty="font-family:var(--font-mono);font-weight:700;color:${A.riskColor(r.value)};font-size:16px">${r.value}${r.unit}</div>
       </div>`).join('');
   };
 
   /* ---------- Charts (Chart.js) ---------- */
   const charts = {};
+
+  /* ============================================================
+     Модуль отчётности (ТЗ): кольцевые диаграммы врача/пациента + Excel-экспорт.
+     Данные повторяют контракт /v1/reports/* (см. backend reports.domain), но
+     здесь строятся и на клиенте — чтобы демо-режим работал без бэкенда.
+  */
+  const R_COLORS = ['#4AFFAA', '#FFB547', '#FF8A5B', '#FF5E7E'];
+  const R_LABELS = ['Низкий', 'Умеренный', 'Высокий', 'Критический'];
+  const r1 = (v) => Math.round(v * 10) / 10;
+
+  // Агрегат кабинета из распределения по уровням [low, med, high, crit].
+  const doctorReportFromDist = (dist) => {
+    const total = dist.reduce((a, b) => a + b, 0);
+    return {
+      title: 'Пациенты по уровню риска',
+      subtitle: `Всего под наблюдением: ${total}`,
+      centerValue: String(total),
+      unit: 'пациентов',
+      segments: dist.map((v, i) => ({
+        label: R_LABELS[i],
+        value: v,
+        color: R_COLORS[i],
+        share: total ? r1((v / total) * 100) : 0,
+      })),
+    };
+  };
+
+  // Композиция риска пациента из ассессмента (домены → доли).
+  const patientReportFromAssessment = (a, name) => {
+    const domains = [
+      ['Инфаркт (ИМ)', a.miRisk, '#FF5E7E'],
+      ['Инсульт', a.strokeRisk, '#FFB547'],
+      ['СД2', a.dmRisk, '#A78BFA'],
+      ['Онко', a.oncoRisk, '#FF8A5B'],
+      ['ХБП', a.ckdRisk, '#00E5FF'],
+      ['Когнитивные', a.neuroRisk, '#4AFFAA'],
+    ].map(([label, v, color]) => ({ label, value: r1(Number(v) || 0), color }));
+    const sum = domains.reduce((s, d) => s + d.value, 0) || 1;
+    domains.forEach((d) => (d.share = r1((d.value / sum) * 100)));
+    const overall = r1(Number(a.overallRisk ?? a.miRisk ?? 0));
+    return {
+      title: name ? `Профиль риска · ${name}` : 'Профиль риска пациента',
+      subtitle: `Интегральный риск (10 лет): ${overall}%`,
+      centerValue: `${overall}%`,
+      unit: '%',
+      segments: domains,
+    };
+  };
+
+  const DEMO_PATIENT_ASSESS = {
+    overallRisk: 34.2, miRisk: 34.2, strokeRisk: 22.1, dmRisk: 18.6, oncoRisk: 9.4, ckdRisk: 11.4, neuroRisk: 7.2,
+  };
+
+  // Фильтр периода отчёта (ТЗ, п.9). Действует на динамику и экспорт.
+  let reportPeriod = 'all';
+  const demoDoctorTrend = () => ({
+    title: 'Средний риск по месяцам', unit: '%', color: '#00E5FF',
+    points: [['Фев', 17.8], ['Мар', 18.3], ['Апр', 18.9], ['Май', 19.4], ['Июн', 19.1], ['Июл', 19.8]].map(([date, value]) => ({ date, value })),
+  });
+  const demoPatientTrend = () => ({
+    title: 'Динамика интегрального риска', unit: '%', color: '#FF5E7E',
+    points: [['Янв', 31.5], ['Мар', 33.1], ['Май', 33.8], ['Июл', 34.2]].map(([date, value]) => ({ date, value })),
+  });
+
+  const renderDoctorDonut = (report) => {
+    const cnv = document.getElementById('doctorDonut');
+    if (!cnv) return;
+    if (charts.doctorDonut) charts.doctorDonut.destroy();
+    charts.doctorDonut = renderDonutStats(cnv, report);
+  };
+  const renderPatientDonut = (report) => {
+    const cnv = document.getElementById('patientDonut');
+    if (!cnv) return;
+    if (charts.patientDonut) charts.patientDonut.destroy();
+    charts.patientDonut = renderDonutStats(cnv, report);
+  };
+  const renderDoctorTrend = (trend) => {
+    const cnv = document.getElementById('doctorTrend');
+    if (!cnv) return;
+    if (charts.doctorTrend) charts.doctorTrend.destroy();
+    charts.doctorTrend = renderTrendLine(cnv, trend || demoDoctorTrend());
+  };
+  const renderPatientTrend = (trend) => {
+    const cnv = document.getElementById('patientTrend');
+    if (!cnv) return;
+    if (charts.patientTrend) charts.patientTrend.destroy();
+    charts.patientTrend = renderTrendLine(cnv, trend || demoPatientTrend());
+  };
+
+  // Отчёт кабинета: сервер → donut+динамика из API (с учётом периода); демо → клиентский расчёт.
+  const refreshDoctorReport = async () => {
+    if (isServer()) {
+      try {
+        const rep = await window.HCApi.reports.doctorStats(reportPeriod);
+        renderDoctorDonut(rep);
+        renderDoctorTrend(rep.trend);
+        return;
+      } catch { /* фолбэк на демо */ }
+    }
+    renderDoctorDonut(doctorReportFromDist(riskDistData));
+    renderDoctorTrend(demoDoctorTrend());
+  };
+  const refreshPatientTrend = async (id) => {
+    if (isServer() && id) {
+      try {
+        const rep = await window.HCApi.reports.patientStats(id, reportPeriod);
+        renderPatientTrend(rep.trend);
+        return;
+      } catch { /* фолбэк на демо */ }
+    }
+    renderPatientTrend(demoPatientTrend());
+  };
+
+  window.setReportPeriod = (period) => {
+    reportPeriod = period || 'all';
+    document.querySelectorAll('[data-action="reportPeriod"]').forEach((c) =>
+      c.classList.toggle('active', c.dataset.period === reportPeriod));
+    refreshDoctorReport();
+    refreshPatientTrend(currentProfileId);
+  };
+
+  const exportDoctorReport = async (format = 'xlsx') => {
+    if (!isServer()) { window.showToastDB?.('Демо-режим', 'Экспорт доступен после входа в систему', 'info'); return; }
+    try {
+      await window.HCApi.reports.downloadDoctor({ period: reportPeriod, format });
+      window.showToastDB?.('Готово', `Отчёт по кабинету выгружен (${format.toUpperCase()})`, 'success');
+    } catch (e) {
+      window.showToastDB?.('Ошибка', e?.message || 'Не удалось сформировать отчёт', 'error');
+    }
+  };
+  const exportPatientReport = async (format = 'xlsx') => {
+    if (!isServer()) { window.showToastDB?.('Демо-режим', 'Экспорт доступен после входа в систему', 'info'); return; }
+    if (!currentProfileId) { window.showToastDB?.('Нет карты', 'Откройте карту пациента', 'info'); return; }
+    try {
+      await window.HCApi.reports.downloadPatient(currentProfileId, { period: reportPeriod, format });
+      window.showToastDB?.('Готово', `Отчёт пациента выгружен (${format.toUpperCase()})`, 'success');
+    } catch (e) {
+      window.showToastDB?.('Ошибка', e?.message || 'Не удалось сформировать отчёт', 'error');
+    }
+  };
 
   const renderTrend = (filter = 'all') => {
     const cnv = document.getElementById('trendChart');
@@ -649,8 +799,8 @@ import { escapeHtml } from './lib/format.js';
       const pos = d.v >= 0;
       const w = (Math.abs(d.v) / max) * 100;
       return `<div class="shap-row">
-        <div class="shap-label">${d.f}${d.imm ? ' <span style="color:var(--text-3);font-size:10px">(немодиф.)</span>' : ''}</div>
-        <div class="shap-track"><div class="shap-fill ${pos ? '' : 'neg'}" style="${pos ? `left:50%;width:${w/2}%` : `right:50%;width:${w/2}%`};"></div></div>
+        <div class="shap-label">${d.f}${d.imm ? ' <span data-sty="color:var(--text-3);font-size:10px">(немодиф.)</span>' : ''}</div>
+        <div class="shap-track"><div class="shap-fill ${pos ? '' : 'neg'}" data-sty="${pos ? `left:50%;width:${w/2}%` : `right:50%;width:${w/2}%`};"></div></div>
         <div class="shap-val">${pos ? '+' : ''}${d.v.toFixed(1)}</div>
       </div>`;
     }).join('');
@@ -831,12 +981,12 @@ import { escapeHtml } from './lib/format.js';
     const cell = (v) => {
       const col = window.Ariadna.riskColor(v);
       const alpha = 0.2 + (v / 100) * 0.75;
-      return `<td style="padding:12px;text-align:center;font-family:var(--font-mono);font-size:12px;color:${col};background:${col}${Math.floor(alpha*255).toString(16).padStart(2,'0')};border-radius:6px;min-width:52px">${v}</td>`;
+      return `<td data-sty="padding:12px;text-align:center;font-family:var(--font-mono);font-size:12px;color:${col};background:${col}${Math.floor(alpha*255).toString(16).padStart(2,'0')};border-radius:6px;min-width:52px">${v}</td>`;
     };
     el.innerHTML = `
-      <table style="border-collapse:separate;border-spacing:4px;width:100%">
-        <thead><tr><th></th>${cols.map((c) => `<th style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-3);font-weight:500;padding:6px">${c}</th>`).join('')}</tr></thead>
-        <tbody>${m.map((r, i) => `<tr><td style="text-align:right;font-size:12px;color:var(--text-3);padding:6px 8px;white-space:nowrap">${rows[i]}</td>${r.map(cell).join('')}</tr>`).join('')}</tbody>
+      <table data-sty="border-collapse:separate;border-spacing:4px;width:100%">
+        <thead><tr><th></th>${cols.map((c) => `<th data-sty="font-family:var(--font-mono);font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-3);font-weight:500;padding:6px">${c}</th>`).join('')}</tr></thead>
+        <tbody>${m.map((r, i) => `<tr><td data-sty="text-align:right;font-size:12px;color:var(--text-3);padding:6px 8px;white-space:nowrap">${rows[i]}</td>${r.map(cell).join('')}</tr>`).join('')}</tbody>
       </table>`;
   };
 
@@ -977,6 +1127,8 @@ import { escapeHtml } from './lib/format.js';
       } else {
         renderRiskDist();
       }
+      renderDoctorDonut(doctorReportFromDist(riskDistData)); // отчёт кабинета — из живого распределения
+      refreshDoctorReport(); // + динамика среднего риска по месяцам (сервер, с учётом периода)
     } catch { /* нет данных — оставляем демо-распределение */ }
 
     try {
@@ -1017,8 +1169,53 @@ import { escapeHtml } from './lib/format.js';
     }
   };
 
+  /* ============================================================
+     Делегирование событий (CSP без script-src 'unsafe-inline')
+     ------------------------------------------------------------
+     Раньше кнопки/чипы/слайдеры несли inline on*-обработчики. Теперь разметка
+     помечена data-action / data-action-input, а здесь — единые слушатели.
+     Делегирование на document покрывает и динамически добавленные элементы
+     (строки таблиц пациентов, кнопки выбора тарифа).
+  */
+  document.addEventListener('click', (e) => {
+    const t = e.target.closest('[data-action]');
+    if (!t) return;
+    const d = t.dataset;
+    switch (d.action) {
+      case 'toggleSidebar':    window.toggleSidebar(); break;
+      case 'switchPage':       window.switchPage(d.page); break;
+      case 'navigate':         if (d.href) window.location.href = d.href; break;
+      case 'notify':           window.showToastDB(d.title, d.msg, d.toast || 'info'); break;
+      case 'refreshData':      window.refreshData(); break;
+      case 'chartFilter':      window.setChartFilter(t, d.kind); break;
+      case 'exportPatients':   window.exportPatients(); break;
+      case 'openPatientModal': window.openPatientModal(d.mode || 'create'); break;
+      case 'filterPatients':   window.filterPatients(d.filter, t); break;
+      case 'verifyAudit':      window.verifyAudit(); break;
+      case 'exportDoctorReport':  exportDoctorReport(d.format || 'xlsx'); break;
+      case 'exportPatientReport': exportPatientReport(d.format || 'xlsx'); break;
+      case 'reportPeriod':        window.setReportPeriod(d.period); break;
+      case 'openProfile':      window.openProfile(d.id || ''); break;
+      case 'editPatient':      window.editPatient(d.id || ''); break;
+      case 'changePlan':       window.changePlan(decodeURIComponent(d.plan || '')); break;
+    }
+  });
+
+  document.addEventListener('input', (e) => {
+    const t = e.target.closest('[data-action-input]');
+    if (!t) return;
+    switch (t.dataset.actionInput) {
+      case 'handleSearch':   window.handleSearch(t.value); break;
+      case 'searchPatients': window.searchPatients(t.value); break;
+      case 'updateScenario': window.updateScenario(t.dataset.scenario, t.value); break;
+    }
+  });
+
   /* ---------- Init ---------- */
   const init = () => {
+    // Применяем data-sty к текущему и будущему innerHTML-контенту (CSP: без
+    // style-src 'unsafe-inline' — динамику ставим через CSSOM). Ставим до рендеров.
+    observeDynamicStyles();
     renderOverviewTable();
     renderPatientTable();
     renderRecs();
@@ -1035,6 +1232,12 @@ import { escapeHtml } from './lib/format.js';
     renderPopBioAge();
     renderEconomics();
     renderHeatmap();
+
+    /* Модуль отчётности: кольцевые диаграммы (демо-данные до входа) */
+    renderDoctorDonut(doctorReportFromDist(riskDistData));
+    renderPatientDonut(patientReportFromAssessment(DEMO_PATIENT_ASSESS, 'Морозов В.К.'));
+    renderDoctorTrend(demoDoctorTrend());
+    renderPatientTrend(demoPatientTrend());
 
     initSparks();
 

@@ -1,3 +1,10 @@
+/* Self-hosted variable fonts (bundled by Vite) — заменяют Google Fonts CDN.
+   Позволяет CSP обойтись без fonts.googleapis.com/gstatic.com и убирает внешний
+   RTT на первую отрисовку. Cyrillic-подмножества включены. */
+@import '@fontsource-variable/inter/index.css';
+@import '@fontsource-variable/space-grotesk/index.css';
+@import '@fontsource-variable/jetbrains-mono/index.css';
+
 /* ============================================================
    HealthCareOAB+ — Premium landing stylesheet
    ============================================================ */
@@ -31,9 +38,9 @@
   --radius-xl: 32px;
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-in-out: cubic-bezier(0.76, 0, 0.24, 1);
-  --font-sans: 'Inter', 'DM Sans', system-ui, -apple-system, sans-serif;
-  --font-display: 'Space Grotesk', 'Syne', 'Inter', sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --font-sans: 'Inter Variable', 'Inter', 'DM Sans', system-ui, -apple-system, sans-serif;
+  --font-display: 'Space Grotesk Variable', 'Space Grotesk', 'Syne', 'Inter Variable', sans-serif;
+  --font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, monospace;
   --maxw: 1280px;
 }
 
@@ -817,6 +824,31 @@ p  { margin: 0; color: var(--text-2); }
 .flex { display: flex; gap: 12px; align-items: center; }
 .gap-sm { gap: 8px; } .gap-md { gap: 18px; }
 .hidden-mob { }
+
+/* Вынос inline style= (CSP без style-src 'unsafe-inline') — landing/index */
+.u-mint { color: var(--mint); }
+.u-text { color: var(--text); }
+.mt-6 { margin-top: 6px; }
+.mt-18 { margin-top: 18px; }
+.mt-22 { margin-top: 22px; }
+.mt-26 { margin-top: 26px; }
+.flex-wrap { flex-wrap: wrap; }
+.flex-col { display: flex; flex-direction: column; }
+.spin-40 { transform-origin: center; animation: spinSlow 40s linear infinite; }
+.spin-25r { transform-origin: center; animation: spinSlow 25s linear infinite reverse; }
+.arc-fg { transition: stroke-dashoffset 1s var(--ease-out); }
+.demo-foot { margin-top: auto; padding-top: 22px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--text-3); }
+.cta-note-p { max-width: 540px; margin: 14px auto 0; }
+
+/* ---------- A11y: скип-ссылка + видимый фокус для клавиатуры ---------- */
+.skip-link {
+  position: fixed; top: 8px; left: 8px; z-index: 2000;
+  transform: translateY(-150%); transition: transform 0.15s var(--ease-out);
+  background: var(--cyan); color: #04121A; font-weight: 600;
+  padding: 10px 16px; border-radius: 8px; text-decoration: none;
+}
+.skip-link:focus { transform: translateY(0); outline: none; }
+:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; border-radius: 4px; }
 @media (max-width: 720px) { .hidden-mob { display: none !important; } }
 
 @media (prefers-reduced-motion: reduce) {

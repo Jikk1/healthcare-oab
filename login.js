@@ -1,3 +1,8 @@
+import './lib/telemetry.js';
+import { initI18n } from './lib/i18n.js';
+
+initI18n(); // RU по умолчанию; переключатель [data-lang-toggle]
+
 /* ============================================================
    HealthCareOAB+ — Login page logic (Phase 2)
    ============================================================

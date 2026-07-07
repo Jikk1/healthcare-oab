@@ -7,8 +7,11 @@
    сервере (HCApi). Пустые поля не учитываются — это влияет на полноту данных
    и ширину доверительных интервалов, а не ломает расчёт.
    ============================================================ */
+import './lib/telemetry.js';
 import { resolveRange, fieldStatus, BIOMARKER_MAP, mapBiomarkers } from './lib/clinical.js';
 import { escapeHtml } from './lib/format.js';
+import { observeDynamicStyles } from './lib/dom.js';
+import { initI18n } from './lib/i18n.js';
 
 (() => {
   'use strict';
@@ -107,7 +110,7 @@ import { escapeHtml } from './lib/format.js';
     $('groups').innerHTML = GROUPS.map((g) => `
       <details class="or-accordion"${g.open ? ' open' : ''}>
         <summary>${g.title}<span class="grp-count" id="cnt-${g.id}"></span></summary>
-        <div style="padding:8px 0">
+        <div data-sty="padding:8px 0">
           ${g.fields.map((f) => `
             <div class="lab-field">
               <div class="lab-meta">
@@ -180,7 +183,7 @@ import { escapeHtml } from './lib/format.js';
         const [lo, hi] = refRange(f);
         const dir = v < lo ? '↓' : '↑';
         const col = st === 'bad' ? COLORS.rose : COLORS.amber;
-        out.push(`<span class="flag" style="color:${col};border-color:${col}55;background:${col}11">${dir} ${f.label}: ${v}${f.unit ? ' ' + f.unit : ''}</span>`);
+        out.push(`<span class="flag" data-sty="color:${col};border-color:${col}55;background:${col}11">${dir} ${f.label}: ${v}${f.unit ? ' ' + f.unit : ''}</span>`);
       }
     }
     const filled = FIELDS.filter((f) => fieldValue(f) !== undefined).length;
@@ -202,7 +205,7 @@ import { escapeHtml } from './lib/format.js';
     ];
     $('kpis').innerHTML = kpis.map((k) => `
       <div class="or-kpi">
-        <div class="v" style="color:${k.color}">${k.v}</div>
+        <div class="v" data-sty="color:${k.color}">${k.v}</div>
         <div class="l">${k.l}</div>
         ${k.hint ? `<div class="hint">${k.hint}</div>` : ''}
       </div>`).join('');
@@ -233,11 +236,11 @@ import { escapeHtml } from './lib/format.js';
       const onset = p.onsetAgeEstimate ? `дебют ~${p.onsetAgeEstimate} лет · ` : '';
       return `<div class="or-disease">
         <div>
-          <div class="nm">${p.name} <span class="risk-badge" style="background:${col}22;color:${col};border:1px solid ${col}55;font-size:10px;padding:1px 7px;border-radius:999px">${levelLabel[p.riskLevel]}</span></div>
+          <div class="nm">${p.name} <span class="risk-badge" data-sty="background:${col}22;color:${col};border:1px solid ${col}55;font-size:10px;padding:1px 7px;border-radius:999px">${levelLabel[p.riskLevel]}</span></div>
           <div class="meta">${p.icd11} · ${CATEGORY_LABELS[p.category]} · ${onset}RR ${p.relativeRisk}× · ДИ ${ci[0]}–${ci[1]}%</div>
         </div>
-        <div class="or-prob" style="color:${riskColor(prob)}">${prob}%</div>
-        <div class="or-bar"><i style="width:${Math.min(100, prob)}%;background:${riskColor(prob)}"></i></div>
+        <div class="or-prob" data-sty="color:${riskColor(prob)}">${prob}%</div>
+        <div class="or-bar"><i data-sty="width:${Math.min(100, prob)}%;background:${riskColor(prob)}"></i></div>
       </div>`;
     }).join('');
   }
@@ -249,7 +252,7 @@ import { escapeHtml } from './lib/format.js';
     $('driverDisease').textContent = '· ' + top.name;
     const causal = r.causal[top.id];
     if (!causal || !causal.drivers.length) {
-      $('drivers').innerHTML = '<div class="cap" style="margin:0">Недостаточно данных для разбора факторов. Заполните больше показателей.</div>';
+      $('drivers').innerHTML = '<div class="cap" data-sty="margin:0">Недостаточно данных для разбора факторов. Заполните больше показателей.</div>';
       return;
     }
     const rows = causal.drivers.slice(0, 6).map((d) => `
@@ -258,10 +261,10 @@ import { escapeHtml } from './lib/format.js';
           <div class="d-nm">${d.label}</div>
           <div class="d-sub">${d.causal ? 'модифицируемый' : 'немодифицируемый'} · вклад ${Math.round(d.contribution * 100)}%</div>
         </div>
-        <div class="d-val" style="color:${d.causal ? COLORS.mint : COLORS.violet}">${d.causal ? '−' + d.counterfactualReductionPct + '%' : '—'}</div>
+        <div class="d-val" data-sty="color:${d.causal ? COLORS.mint : COLORS.violet}">${d.causal ? '−' + d.counterfactualReductionPct + '%' : '—'}</div>
       </div>`).join('');
     $('drivers').innerHTML = rows +
-      `<div class="or-note">Модифицируемая доля риска: <b style="color:${COLORS.mint}">${causal.modifiableSharePct}%</b>. Колонка справа — оценка снижения риска при нормализации фактора.</div>`;
+      `<div class="or-note">Модифицируемая доля риска: <b data-sty="color:${COLORS.mint}">${causal.modifiableSharePct}%</b>. Колонка справа — оценка снижения риска при нормализации фактора.</div>`;
   }
 
   /* ---------- Радар цифрового двойника ---------- */
@@ -407,9 +410,9 @@ import { escapeHtml } from './lib/format.js';
   async function saveToPatient() {
     const id = $('patientSelect').value;
     const out = $('assessResult');
-    if (!id) { out.innerHTML = '<span style="color:var(--amber)">Выберите пациента</span>'; return; }
+    if (!id) { out.innerHTML = '<span data-sty="color:var(--amber)">Выберите пациента</span>'; return; }
     const { body, count } = buildBiomarkerBody();
-    if (count === 0) { out.innerHTML = '<span style="color:var(--amber)">Введите хотя бы один показатель (АД, ЛПНП, HbA1c, ИМТ…)</span>'; return; }
+    if (count === 0) { out.innerHTML = '<span data-sty="color:var(--amber)">Введите хотя бы один показатель (АД, ЛПНП, HbA1c, ИМТ…)</span>'; return; }
     const btn = $('assessBtn');
     btn.disabled = true;
     const prev = btn.textContent;
@@ -420,12 +423,12 @@ import { escapeHtml } from './lib/format.js';
       const recs = (r && r.recommendations) || [];
       const lvlRu = { LOW: 'низкий', MEDIUM: 'умеренный', HIGH: 'высокий', CRITICAL: 'критический' };
       out.innerHTML =
-        `<span style="color:var(--mint)">✓ Сохранено.</span> Риск: <b>${lvlRu[a.riskLevel] || a.riskLevel || '—'}</b>` +
+        `<span data-sty="color:var(--mint)">✓ Сохранено.</span> Риск: <b>${lvlRu[a.riskLevel] || a.riskLevel || '—'}</b>` +
         (a.cvRisk != null ? ` · ССЗ ${Number(a.cvRisk).toFixed(1)}%` : '') +
         (a.bioAge != null ? ` · биовозраст ${Math.round(a.bioAge)}` : '') +
         (recs.length ? ` · рекомендаций: ${recs.length}` : '');
     } catch (e) {
-      out.innerHTML = `<span style="color:var(--rose)">Ошибка: ${e && e.message ? e.message : 'не удалось сохранить'}</span>`;
+      out.innerHTML = `<span data-sty="color:var(--rose)">Ошибка: ${e && e.message ? e.message : 'не удалось сохранить'}</span>`;
     } finally {
       btn.disabled = false;
       btn.textContent = prev;
@@ -434,6 +437,8 @@ import { escapeHtml } from './lib/format.js';
 
   /* ---------- Инициализация ---------- */
   function init() {
+    observeDynamicStyles(); // применяет data-sty к innerHTML-рендерам (CSP: без style-src 'unsafe-inline')
+    initI18n(); // переключатель RU/EN (переведены шапка и навигация; поля/результаты — RU)
     buildGroups();
 
     document.querySelectorAll('#groups input, #age').forEach((el) => el.addEventListener('input', scheduleCompute));
@@ -448,7 +453,7 @@ import { escapeHtml } from './lib/format.js';
         if (!api) { setComputeHint('· API недоступен'); return; }
         setComputeHint('· проверяю сессию…');
         const ok = await api.auth.refresh().catch(() => false);
-        if (!ok) { setComputeHint('· <a href="login.html?redirect=labs.html" style="color:var(--cyan)">войти</a> для серверного режима', true); return; }
+        if (!ok) { setComputeHint('· <a href="login.html?redirect=labs.html" data-sty="color:var(--cyan)">войти</a> для серверного режима', true); return; }
         enableDoctorMode(); // авторизовались → открыть сохранение в карту
       }
       state.source = src;

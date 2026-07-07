@@ -1,0 +1,12 @@
+# HealthCareOAB+ — robots
+# Прод-хост берётся из ingress (k8s: app.healthcare-oab.example). При смене
+# домена обновите host здесь и в sitemap.xml + canonical-ссылках страниц.
+User-agent: *
+Allow: /
+
+# Приложение врача и вход не индексируем (за ними — PHI и авторизация).
+Disallow: /dashboard.html
+Disallow: /login.html
+Disallow: /config.js
+
+Sitemap: https://app.healthcare-oab.example/sitemap.xml

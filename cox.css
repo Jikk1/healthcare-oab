@@ -1,3 +1,7 @@
+/* Self-hosted variable fonts (bundled by Vite) — вместо Google Fonts CDN. */
+@import '@fontsource-variable/inter/index.css';
+@import '@fontsource-variable/jetbrains-mono/index.css';
+
 /* ============================================================
    Cox Predictive Medicine — лендинг
    Палитра: тёмно-синий фон · белый текст · бирюзовые акценты
@@ -30,9 +34,9 @@
   --shadow: 0 24px 60px -28px rgba(0, 0, 0, 0.7);
   --maxw: 1180px;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
-  --font: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font: 'Inter Variable', 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-math: 'Cambria Math', 'STIX Two Math', 'Times New Roman', Georgia, serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  --font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
 }
 
 * { box-sizing: border-box; }
@@ -380,3 +384,29 @@ html.js .reveal.in { opacity: 1; transform: none; }
 .horizon-card { flex: 1; min-width: 90px; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; text-align: center; }
 .horizon-card .hv { font-family: var(--font-mono); font-size: 1.1rem; font-weight: 700; color: var(--teal-bright); }
 .horizon-card .hl { font-size: 0.7rem; color: var(--text-3); margin-top: 3px; }
+
+/* ============================================================
+   Утилитарные классы — вынос inline style= (CSP без style-src 'unsafe-inline')
+   ============================================================ */
+.u-teal { color: var(--teal-bright); }
+.u-text { color: var(--text); }
+.u-fmath { font-family: var(--font-math); }
+.u-pt0 { padding-top: 0; }
+.u-pt48 { padding-top: 48px; }
+.cta-quote { text-align: center; border-left: none; display: flex; flex-direction: column; align-items: center; gap: 18px; }
+.cta-h { font-size: clamp(1.6rem, 3.4vw, 2.4rem); letter-spacing: -0.025em; margin: 0; max-width: 22ch; }
+.cta-p { color: var(--text-2); max-width: 60ch; margin: 0; }
+.demo-h1 { font-size: clamp(1.8rem, 4vw, 2.8rem); letter-spacing: -0.025em; margin: 18px 0 10px; }
+.demo-sub { color: var(--text-2); max-width: 70ch; margin: 0 0 18px; }
+.surv-block { margin-bottom: 14px; }
+.surv-label { font-size: 0.9rem; margin-bottom: 8px; color: var(--text); }
+
+/* A11y: скип-ссылка + видимый фокус для клавиатуры */
+.skip-link {
+  position: fixed; top: 8px; left: 8px; z-index: 2000;
+  transform: translateY(-150%); transition: transform 0.15s ease;
+  background: var(--teal-bright); color: #04121A; font-weight: 600;
+  padding: 10px 16px; border-radius: 8px; text-decoration: none;
+}
+.skip-link:focus { transform: translateY(0); outline: none; }
+:focus-visible { outline: 2px solid var(--teal-bright); outline-offset: 2px; border-radius: 4px; }
