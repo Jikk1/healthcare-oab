@@ -4,20 +4,18 @@
 import './lib/telemetry.js';
 import { observeDynamicStyles } from './lib/dom.js';
 import { initI18n } from './lib/i18n.js';
+import { takeProfile } from './lib/handoff.js';
+import {
+  COLORS, riskColor, syncSeg,
+  renderKpis as kpiMarkup, renderCatFilter as catFilter,
+  renderDiseases as diseaseList, renderTwinRadar as twinRadar,
+} from './lib/omni-render.js';
 
 (() => {
   'use strict';
   const { runOmniRisk, simulateIntervention, CATEGORY_LABELS } = window.OmniRisk;
   const $ = (id) => document.getElementById(id);
   const api = window.HCApi; // для серверного режима вычислений (Фаза 4)
-
-  const COLORS = {
-    low: '#4AFFAA', medium: '#FFB547', high: '#FF8A5B', critical: '#FF5E7E',
-    cyan: '#00E5FF', mint: '#4AFFAA', violet: '#A78BFA', rose: '#FF5E7E', amber: '#FFB547',
-  };
-  const levelColor = (lvl) => COLORS[lvl.toLowerCase()] || COLORS.cyan;
-  const levelLabel = { LOW: 'Низкий', MEDIUM: 'Умеренный', HIGH: 'Высокий', CRITICAL: 'Критический' };
-  const riskColor = (p) => (p < 8 ? COLORS.mint : p < 20 ? COLORS.amber : p < 40 ? COLORS.high : COLORS.rose);
 
   /* ---------- Пресеты профиля ---------- */
   const PRESETS = {
@@ -58,8 +56,48 @@ import { initI18n } from './lib/i18n.js';
     render();
   }
 
-  function syncSeg(containerId, dataKey, value) {
-    document.querySelectorAll(`#${containerId} button`).forEach((b) => b.classList.toggle('active', b.dataset[dataKey] === value));
+  /* ---------- Приём профиля из labs.html (handoff) ----------
+     Слайдеры покрывают лишь часть богатого профиля из анализов. Поэтому:
+     1) стартуем от пресета «типичный», чтобы слайдеры без соответствия имели
+        разумные значения; 2) переопределяем слайдеры теми полями, что маппятся
+        (обратное масштабирование к readProfile); 3) первый рендер делаем от
+        ПОЛНОГО профиля — так ОАК/кардиомаркеры/etc. участвуют в разборе, даже
+        если у них нет ползунка. Любое движение слайдера дальше пересчитывает
+        от песочницы (обычное поведение). */
+  function pick(obj, path) {
+    return path.split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj);
+  }
+  function seedFromProfile(p) {
+    // База: значения пресета «типичный» (без рендера).
+    for (const [k, v] of Object.entries(PRESETS.typical)) {
+      if (k === 'sex') { state.sex = v; syncSeg('sex', 'sex', v); }
+      else if (k === 'smoke') { state.smoke = v; syncSeg('smoke', 'smoke', v); }
+      else if ($(k)) $(k).value = v;
+    }
+    // Переопределяем тем, что реально пришло. factor — обратное к readProfile.
+    const set = (id, val, factor = 1) => {
+      if (val == null || !Number.isFinite(val) || !$(id)) return;
+      $(id).value = Math.round(val * factor); // range-инпут сам зажмёт в min/max
+    };
+    set('age', pick(p, 'ageYears'));
+    set('sbp', pick(p, 'labs.systolicBp'));
+    set('ldl', pick(p, 'labs.ldl'), 10);
+    set('hdl', pick(p, 'labs.hdl'), 10);
+    set('hba1c', pick(p, 'labs.hba1c'), 10);
+    set('bmi', pick(p, 'labs.bmi'));
+    set('egfr', pick(p, 'labs.egfr'));
+    set('pack', pick(p, 'lifestyle.packYears'));
+    set('act', pick(p, 'lifestyle.activityPerWeek'));
+    set('sleep', pick(p, 'lifestyle.sleepHours'), 10);
+    set('alc', pick(p, 'lifestyle.alcoholUnitsPerWeek'));
+    set('crp', pick(p, 'proteomic.crp'), 10);
+    set('prsCv', pick(p, 'genomic.prs.CARDIOVASCULAR'), 10);
+    set('prsOnco', pick(p, 'genomic.prs.ONCOLOGY'), 10);
+    set('fam', pick(p, 'family.affected.CARDIOVASCULAR'));
+    if (p.sex) { state.sex = p.sex; syncSeg('sex', 'sex', p.sex); }
+    const smoke = pick(p, 'lifestyle.smokingStatus');
+    if (smoke) { state.smoke = smoke; syncSeg('smoke', 'smoke', smoke); }
+    syncLabels();
   }
 
   /* ---------- Обновить подписи значений ---------- */
@@ -88,64 +126,25 @@ import { initI18n } from './lib/i18n.js';
       { v: le.disabilityRisk10y + '%', l: 'Риск инвалидизации 10л', hint: '', color: riskColor(le.disabilityRisk10y) },
       { v: r.predictions.length, l: 'Болезней оценено', hint: `${r.modalitiesPresent.length} модальностей`, color: COLORS.violet },
     ];
-    $('kpis').innerHTML = kpis.map((k) => `
-      <div class="or-kpi">
-        <div class="v" data-sty="color:${k.color}">${k.v}</div>
-        <div class="l">${k.l}</div>
-        ${k.hint ? `<div class="hint">${k.hint}</div>` : ''}
-      </div>`).join('');
+    kpiMarkup($('kpis'), kpis);
   }
 
   /* ---------- Фильтр категорий ---------- */
   function renderCatFilter(r) {
-    const cats = [...new Set(r.predictions.map((p) => p.category))];
-    const chips = ['<button data-cat="all" class="' + (state.category === 'all' ? 'active' : '') + '">Все</button>']
-      .concat(cats.map((c) => `<button data-cat="${c}" class="${state.category === c ? 'active' : ''}">${CATEGORY_LABELS[c]}</button>`));
-    $('catFilter').innerHTML = chips.join('');
-    document.querySelectorAll('#catFilter button').forEach((b) => b.addEventListener('click', () => { state.category = b.dataset.cat; render(); }));
+    catFilter($('catFilter'), r, CATEGORY_LABELS, state.category, (cat) => { state.category = cat; render(); });
   }
 
-  /* ---------- Список болезней ---------- */
-  function probAt(p, h) { const x = p.horizons.find((hh) => String(hh.years) === String(h)); return x ? x.probability : 0; }
-  function ciAt(p, h) { const x = p.horizons.find((hh) => String(hh.years) === String(h)); return x ? x.ci : [0, 0]; }
-
+  /* ---------- Список болезней (кликабельный: строка → SHAP-разбор) ---------- */
   function renderDiseases(r) {
-    const hLabels = { '1': '1 год', '3': '3 года', '5': '5 лет', '10': '10 лет', '20': '20 лет', lifetime: 'пожизненно' };
-    $('horizonLabel').textContent = '· ' + hLabels[state.horizon];
-    let list = r.predictions.slice();
-    if (state.category !== 'all') list = list.filter((p) => p.category === state.category);
-    list.sort((a, b) => probAt(b, state.horizon) - probAt(a, state.horizon));
-    $('diseaseList').innerHTML = list.map((p) => {
-      const prob = probAt(p, state.horizon), ci = ciAt(p, state.horizon), col = levelColor(p.riskLevel);
-      const onset = p.onsetAgeEstimate ? `дебют ~${p.onsetAgeEstimate} лет · ` : '';
-      return `<div class="or-disease" data-disease="${p.id}" data-sty="cursor:pointer">
-        <div>
-          <div class="nm">${p.name} <span class="risk-badge" data-sty="background:${col}22;color:${col};border:1px solid ${col}55">${levelLabel[p.riskLevel]}</span></div>
-          <div class="meta">${p.icd11} · ${CATEGORY_LABELS[p.category]} · ${onset}RR ${p.relativeRisk}× · CI ${ci[0]}–${ci[1]}%</div>
-        </div>
-        <div class="or-prob" data-sty="color:${riskColor(prob)}">${prob}%</div>
-        <div class="or-bar"><i data-sty="width:${Math.min(100, prob)}%;background:${riskColor(prob)}"></i></div>
-      </div>`;
-    }).join('');
-    document.querySelectorAll('#diseaseList .or-disease').forEach((row) => row.addEventListener('click', () => {
-      state.shapDisease = row.dataset.disease; renderExplain(window._last);
-    }));
+    diseaseList($('diseaseList'), r, {
+      horizon: state.horizon, category: state.category, categoryLabels: CATEGORY_LABELS,
+      horizonLabelEl: $('horizonLabel'), clickable: true, ciLabel: 'CI',
+      onSelect: (id) => { state.shapDisease = id; renderExplain(window._last); },
+    });
   }
 
   /* ---------- Цифровой двойник: радар ---------- */
-  function renderTwinRadar(r) {
-    const cur = r.digitalTwin.current;
-    const data = {
-      labels: cur.map((s) => s.label),
-      datasets: [{ label: 'Индекс здоровья', data: cur.map((s) => s.health), borderColor: COLORS.cyan, backgroundColor: 'rgba(0,229,255,0.18)', pointBackgroundColor: COLORS.cyan, pointBorderColor: '#04121A', pointBorderWidth: 2 }],
-    };
-    if (charts.radar) { charts.radar.data = data; charts.radar.update('none'); return; }
-    charts.radar = new Chart($('twinRadar'), {
-      type: 'radar', data,
-      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
-        scales: { r: { beginAtZero: true, max: 100, ticks: { display: false }, grid: { color: 'rgba(255,255,255,0.08)' }, angleLines: { color: 'rgba(255,255,255,0.08)' }, pointLabels: { color: '#A6AFC4', font: { size: 11 } } } } },
-    });
-  }
+  function renderTwinRadar(r) { twinRadar(charts, $('twinRadar'), r); }
 
   /* ---------- Цифровой двойник: траектория ---------- */
   function renderTwinLine(r) {
@@ -332,7 +331,18 @@ import { initI18n } from './lib/i18n.js';
       if (state.interventions.has(iv)) state.interventions.delete(iv); else state.interventions.add(iv);
       b.classList.toggle('active'); renderIntervention();
     }));
-    applyPreset('typical');
+
+    // Если пришли из labs.html — считаем от переданного профиля целиком
+    // (богатые поля не теряются), а слайдеры засеваем маппируемым подмножеством.
+    const handoff = takeProfile();
+    if (handoff) {
+      document.querySelectorAll('#presets button').forEach((x) => x.classList.remove('active'));
+      seedFromProfile(handoff);
+      applyResult(runOmniRisk(handoff));
+      setComputeHint('· профиль из анализов');
+    } else {
+      applyPreset('typical');
+    }
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

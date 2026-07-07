@@ -12,20 +12,18 @@ import { resolveRange, fieldStatus, BIOMARKER_MAP, mapBiomarkers } from './lib/c
 import { escapeHtml } from './lib/format.js';
 import { observeDynamicStyles } from './lib/dom.js';
 import { initI18n } from './lib/i18n.js';
+import { stashProfile } from './lib/handoff.js';
+import {
+  COLORS, riskColor, probAt, syncSeg,
+  renderKpis as kpiMarkup, renderCatFilter as catFilter,
+  renderDiseases as diseaseList, renderTwinRadar as twinRadar,
+} from './lib/omni-render.js';
 
 (() => {
   'use strict';
   const { runOmniRisk, CATEGORY_LABELS } = window.OmniRisk;
   const api = window.HCApi;
   const $ = (id) => document.getElementById(id);
-
-  const COLORS = {
-    low: '#4AFFAA', medium: '#FFB547', high: '#FF8A5B', critical: '#FF5E7E',
-    cyan: '#00E5FF', mint: '#4AFFAA', violet: '#A78BFA', rose: '#FF5E7E', amber: '#FFB547',
-  };
-  const levelColor = (lvl) => COLORS[lvl.toLowerCase()] || COLORS.cyan;
-  const levelLabel = { LOW: 'Низкий', MEDIUM: 'Умеренный', HIGH: 'Высокий', CRITICAL: 'Критический' };
-  const riskColor = (p) => (p < 8 ? COLORS.mint : p < 20 ? COLORS.amber : p < 40 ? COLORS.high : COLORS.rose);
 
   /* ---------- Конфигурация полей ----------
      path — куда положить значение в HealthProfile (точечный путь).
@@ -203,46 +201,21 @@ import { initI18n } from './lib/i18n.js';
       { v: '+' + le.yearsOfLifeLostModifiable, l: 'Возвратимые годы', hint: 'при коррекции факторов', color: COLORS.mint },
       { v: r.predictions.length, l: 'Болезней оценено', hint: `${r.modalitiesPresent.length} модальностей данных`, color: COLORS.violet },
     ];
-    $('kpis').innerHTML = kpis.map((k) => `
-      <div class="or-kpi">
-        <div class="v" data-sty="color:${k.color}">${k.v}</div>
-        <div class="l">${k.l}</div>
-        ${k.hint ? `<div class="hint">${k.hint}</div>` : ''}
-      </div>`).join('');
+    kpiMarkup($('kpis'), kpis);
   }
 
   /* ---------- Фильтр категорий ---------- */
   function renderCatFilter(r) {
-    const cats = [...new Set(r.predictions.map((p) => p.category))];
-    const chips = ['<button data-cat="all" class="' + (state.category === 'all' ? 'active' : '') + '">Все</button>']
-      .concat(cats.map((c) => `<button data-cat="${c}" class="${state.category === c ? 'active' : ''}">${CATEGORY_LABELS[c]}</button>`));
-    $('catFilter').innerHTML = chips.join('');
-    document.querySelectorAll('#catFilter button').forEach((b) => b.addEventListener('click', () => { state.category = b.dataset.cat; renderDiseases(last); }));
+    catFilter($('catFilter'), r, CATEGORY_LABELS, state.category, (cat) => { state.category = cat; renderDiseases(last); });
   }
 
-  /* ---------- Список болезней ---------- */
-  const probAt = (p, h) => { const x = p.horizons.find((hh) => String(hh.years) === String(h)); return x ? x.probability : 0; };
-  const ciAt = (p, h) => { const x = p.horizons.find((hh) => String(hh.years) === String(h)); return x ? x.ci : [0, 0]; };
-
+  /* ---------- Список болезней (некликабельный, метка ДИ, компактный бейдж) ---------- */
   function renderDiseases(r) {
-    if (!r) return;
-    const hLabels = { '1': '1 год', '3': '3 года', '5': '5 лет', '10': '10 лет', '20': '20 лет', lifetime: 'пожизненно' };
-    $('horizonLabel').textContent = '· ' + hLabels[state.horizon];
-    let list = r.predictions.slice();
-    if (state.category !== 'all') list = list.filter((p) => p.category === state.category);
-    list.sort((a, b) => probAt(b, state.horizon) - probAt(a, state.horizon));
-    $('diseaseList').innerHTML = list.map((p) => {
-      const prob = probAt(p, state.horizon), ci = ciAt(p, state.horizon), col = levelColor(p.riskLevel);
-      const onset = p.onsetAgeEstimate ? `дебют ~${p.onsetAgeEstimate} лет · ` : '';
-      return `<div class="or-disease">
-        <div>
-          <div class="nm">${p.name} <span class="risk-badge" data-sty="background:${col}22;color:${col};border:1px solid ${col}55;font-size:10px;padding:1px 7px;border-radius:999px">${levelLabel[p.riskLevel]}</span></div>
-          <div class="meta">${p.icd11} · ${CATEGORY_LABELS[p.category]} · ${onset}RR ${p.relativeRisk}× · ДИ ${ci[0]}–${ci[1]}%</div>
-        </div>
-        <div class="or-prob" data-sty="color:${riskColor(prob)}">${prob}%</div>
-        <div class="or-bar"><i data-sty="width:${Math.min(100, prob)}%;background:${riskColor(prob)}"></i></div>
-      </div>`;
-    }).join('');
+    diseaseList($('diseaseList'), r, {
+      horizon: state.horizon, category: state.category, categoryLabels: CATEGORY_LABELS,
+      horizonLabelEl: $('horizonLabel'), ciLabel: 'ДИ',
+      badgeExtra: ';font-size:10px;padding:1px 7px;border-radius:999px',
+    });
   }
 
   /* ---------- Драйверы ведущего риска ---------- */
@@ -268,19 +241,7 @@ import { initI18n } from './lib/i18n.js';
   }
 
   /* ---------- Радар цифрового двойника ---------- */
-  function renderTwinRadar(r) {
-    const cur = r.digitalTwin.current;
-    const data = {
-      labels: cur.map((s) => s.label),
-      datasets: [{ label: 'Индекс здоровья', data: cur.map((s) => s.health), borderColor: COLORS.cyan, backgroundColor: 'rgba(0,229,255,0.18)', pointBackgroundColor: COLORS.cyan, pointBorderColor: '#04121A', pointBorderWidth: 2 }],
-    };
-    if (charts.radar) { charts.radar.data = data; charts.radar.update('none'); return; }
-    charts.radar = new Chart($('twinRadar'), {
-      type: 'radar', data,
-      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
-        scales: { r: { beginAtZero: true, max: 100, ticks: { display: false }, grid: { color: 'rgba(255,255,255,0.08)' }, angleLines: { color: 'rgba(255,255,255,0.08)' }, pointLabels: { color: '#A6AFC4', font: { size: 11 } } } } },
-    });
-  }
+  function renderTwinRadar(r) { twinRadar(charts, $('twinRadar'), r); }
 
   /* ---------- Источник вычислений ---------- */
   function setComputeHint(html, asHtml = false) {
@@ -362,11 +323,6 @@ import { initI18n } from './lib/i18n.js';
   function clearAll(silent) {
     for (const f of FIELDS) $(f.id).value = '';
     if (!silent) { refreshFieldStates(); compute(); }
-  }
-
-  /* ---------- Сегменты ---------- */
-  function syncSeg(containerId, dataKey, value) {
-    document.querySelectorAll(`#${containerId} button`).forEach((b) => b.classList.toggle('active', b.dataset[dataKey] === value));
   }
 
   /* ---------- Врачебный режим: сохранение ассессмента в карту ----------
@@ -472,6 +428,14 @@ import { initI18n } from './lib/i18n.js';
     $('loadBtn').addEventListener('click', () => $('fileInput').click());
     $('fileInput').addEventListener('change', (e) => { if (e.target.files[0]) importJson(e.target.files[0]); e.target.value = ''; });
     $('assessBtn').addEventListener('click', saveToPatient);
+
+    // «Детальный разбор →»: передаём собранный профиль (включая ОАК/кардиомаркеры)
+    // в predict.html через sessionStorage вместо простого перехода по ссылке.
+    const detailCta = $('detailCta');
+    if (detailCta) detailCta.addEventListener('click', (e) => {
+      e.preventDefault();
+      stashProfile(readProfile(), detailCta.getAttribute('href') || 'predict.html');
+    });
 
     // Демо-старт: показываем, что страница «живая», даже без ввода.
     compute();
