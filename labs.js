@@ -7,22 +7,23 @@
    сервере (HCApi). Пустые поля не учитываются — это влияет на полноту данных
    и ширину доверительных интервалов, а не ломает расчёт.
    ============================================================ */
+import './lib/telemetry.js';
 import { resolveRange, fieldStatus, BIOMARKER_MAP, mapBiomarkers } from './lib/clinical.js';
 import { escapeHtml } from './lib/format.js';
+import { observeDynamicStyles } from './lib/dom.js';
+import { initI18n } from './lib/i18n.js';
+import { stashProfile } from './lib/handoff.js';
+import {
+  COLORS, riskColor, probAt, syncSeg,
+  renderKpis as kpiMarkup, renderCatFilter as catFilter,
+  renderDiseases as diseaseList, renderTwinRadar as twinRadar,
+} from './lib/omni-render.js';
 
 (() => {
   'use strict';
   const { runOmniRisk, CATEGORY_LABELS } = window.OmniRisk;
   const api = window.HCApi;
   const $ = (id) => document.getElementById(id);
-
-  const COLORS = {
-    low: '#4AFFAA', medium: '#FFB547', high: '#FF8A5B', critical: '#FF5E7E',
-    cyan: '#00E5FF', mint: '#4AFFAA', violet: '#A78BFA', rose: '#FF5E7E', amber: '#FFB547',
-  };
-  const levelColor = (lvl) => COLORS[lvl.toLowerCase()] || COLORS.cyan;
-  const levelLabel = { LOW: 'Низкий', MEDIUM: 'Умеренный', HIGH: 'Высокий', CRITICAL: 'Критический' };
-  const riskColor = (p) => (p < 8 ? COLORS.mint : p < 20 ? COLORS.amber : p < 40 ? COLORS.high : COLORS.rose);
 
   /* ---------- Конфигурация полей ----------
      path — куда положить значение в HealthProfile (точечный путь).
@@ -107,7 +108,7 @@ import { escapeHtml } from './lib/format.js';
     $('groups').innerHTML = GROUPS.map((g) => `
       <details class="or-accordion"${g.open ? ' open' : ''}>
         <summary>${g.title}<span class="grp-count" id="cnt-${g.id}"></span></summary>
-        <div style="padding:8px 0">
+        <div data-sty="padding:8px 0">
           ${g.fields.map((f) => `
             <div class="lab-field">
               <div class="lab-meta">
@@ -180,7 +181,7 @@ import { escapeHtml } from './lib/format.js';
         const [lo, hi] = refRange(f);
         const dir = v < lo ? '↓' : '↑';
         const col = st === 'bad' ? COLORS.rose : COLORS.amber;
-        out.push(`<span class="flag" style="color:${col};border-color:${col}55;background:${col}11">${dir} ${f.label}: ${v}${f.unit ? ' ' + f.unit : ''}</span>`);
+        out.push(`<span class="flag" data-sty="color:${col};border-color:${col}55;background:${col}11">${dir} ${f.label}: ${v}${f.unit ? ' ' + f.unit : ''}</span>`);
       }
     }
     const filled = FIELDS.filter((f) => fieldValue(f) !== undefined).length;
@@ -200,46 +201,21 @@ import { escapeHtml } from './lib/format.js';
       { v: '+' + le.yearsOfLifeLostModifiable, l: 'Возвратимые годы', hint: 'при коррекции факторов', color: COLORS.mint },
       { v: r.predictions.length, l: 'Болезней оценено', hint: `${r.modalitiesPresent.length} модальностей данных`, color: COLORS.violet },
     ];
-    $('kpis').innerHTML = kpis.map((k) => `
-      <div class="or-kpi">
-        <div class="v" style="color:${k.color}">${k.v}</div>
-        <div class="l">${k.l}</div>
-        ${k.hint ? `<div class="hint">${k.hint}</div>` : ''}
-      </div>`).join('');
+    kpiMarkup($('kpis'), kpis);
   }
 
   /* ---------- Фильтр категорий ---------- */
   function renderCatFilter(r) {
-    const cats = [...new Set(r.predictions.map((p) => p.category))];
-    const chips = ['<button data-cat="all" class="' + (state.category === 'all' ? 'active' : '') + '">Все</button>']
-      .concat(cats.map((c) => `<button data-cat="${c}" class="${state.category === c ? 'active' : ''}">${CATEGORY_LABELS[c]}</button>`));
-    $('catFilter').innerHTML = chips.join('');
-    document.querySelectorAll('#catFilter button').forEach((b) => b.addEventListener('click', () => { state.category = b.dataset.cat; renderDiseases(last); }));
+    catFilter($('catFilter'), r, CATEGORY_LABELS, state.category, (cat) => { state.category = cat; renderDiseases(last); });
   }
 
-  /* ---------- Список болезней ---------- */
-  const probAt = (p, h) => { const x = p.horizons.find((hh) => String(hh.years) === String(h)); return x ? x.probability : 0; };
-  const ciAt = (p, h) => { const x = p.horizons.find((hh) => String(hh.years) === String(h)); return x ? x.ci : [0, 0]; };
-
+  /* ---------- Список болезней (некликабельный, метка ДИ, компактный бейдж) ---------- */
   function renderDiseases(r) {
-    if (!r) return;
-    const hLabels = { '1': '1 год', '3': '3 года', '5': '5 лет', '10': '10 лет', '20': '20 лет', lifetime: 'пожизненно' };
-    $('horizonLabel').textContent = '· ' + hLabels[state.horizon];
-    let list = r.predictions.slice();
-    if (state.category !== 'all') list = list.filter((p) => p.category === state.category);
-    list.sort((a, b) => probAt(b, state.horizon) - probAt(a, state.horizon));
-    $('diseaseList').innerHTML = list.map((p) => {
-      const prob = probAt(p, state.horizon), ci = ciAt(p, state.horizon), col = levelColor(p.riskLevel);
-      const onset = p.onsetAgeEstimate ? `дебют ~${p.onsetAgeEstimate} лет · ` : '';
-      return `<div class="or-disease">
-        <div>
-          <div class="nm">${p.name} <span class="risk-badge" style="background:${col}22;color:${col};border:1px solid ${col}55;font-size:10px;padding:1px 7px;border-radius:999px">${levelLabel[p.riskLevel]}</span></div>
-          <div class="meta">${p.icd11} · ${CATEGORY_LABELS[p.category]} · ${onset}RR ${p.relativeRisk}× · ДИ ${ci[0]}–${ci[1]}%</div>
-        </div>
-        <div class="or-prob" style="color:${riskColor(prob)}">${prob}%</div>
-        <div class="or-bar"><i style="width:${Math.min(100, prob)}%;background:${riskColor(prob)}"></i></div>
-      </div>`;
-    }).join('');
+    diseaseList($('diseaseList'), r, {
+      horizon: state.horizon, category: state.category, categoryLabels: CATEGORY_LABELS,
+      horizonLabelEl: $('horizonLabel'), ciLabel: 'ДИ',
+      badgeExtra: ';font-size:10px;padding:1px 7px;border-radius:999px',
+    });
   }
 
   /* ---------- Драйверы ведущего риска ---------- */
@@ -249,7 +225,7 @@ import { escapeHtml } from './lib/format.js';
     $('driverDisease').textContent = '· ' + top.name;
     const causal = r.causal[top.id];
     if (!causal || !causal.drivers.length) {
-      $('drivers').innerHTML = '<div class="cap" style="margin:0">Недостаточно данных для разбора факторов. Заполните больше показателей.</div>';
+      $('drivers').innerHTML = '<div class="cap" data-sty="margin:0">Недостаточно данных для разбора факторов. Заполните больше показателей.</div>';
       return;
     }
     const rows = causal.drivers.slice(0, 6).map((d) => `
@@ -258,26 +234,14 @@ import { escapeHtml } from './lib/format.js';
           <div class="d-nm">${d.label}</div>
           <div class="d-sub">${d.causal ? 'модифицируемый' : 'немодифицируемый'} · вклад ${Math.round(d.contribution * 100)}%</div>
         </div>
-        <div class="d-val" style="color:${d.causal ? COLORS.mint : COLORS.violet}">${d.causal ? '−' + d.counterfactualReductionPct + '%' : '—'}</div>
+        <div class="d-val" data-sty="color:${d.causal ? COLORS.mint : COLORS.violet}">${d.causal ? '−' + d.counterfactualReductionPct + '%' : '—'}</div>
       </div>`).join('');
     $('drivers').innerHTML = rows +
-      `<div class="or-note">Модифицируемая доля риска: <b style="color:${COLORS.mint}">${causal.modifiableSharePct}%</b>. Колонка справа — оценка снижения риска при нормализации фактора.</div>`;
+      `<div class="or-note">Модифицируемая доля риска: <b data-sty="color:${COLORS.mint}">${causal.modifiableSharePct}%</b>. Колонка справа — оценка снижения риска при нормализации фактора.</div>`;
   }
 
   /* ---------- Радар цифрового двойника ---------- */
-  function renderTwinRadar(r) {
-    const cur = r.digitalTwin.current;
-    const data = {
-      labels: cur.map((s) => s.label),
-      datasets: [{ label: 'Индекс здоровья', data: cur.map((s) => s.health), borderColor: COLORS.cyan, backgroundColor: 'rgba(0,229,255,0.18)', pointBackgroundColor: COLORS.cyan, pointBorderColor: '#04121A', pointBorderWidth: 2 }],
-    };
-    if (charts.radar) { charts.radar.data = data; charts.radar.update('none'); return; }
-    charts.radar = new Chart($('twinRadar'), {
-      type: 'radar', data,
-      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
-        scales: { r: { beginAtZero: true, max: 100, ticks: { display: false }, grid: { color: 'rgba(255,255,255,0.08)' }, angleLines: { color: 'rgba(255,255,255,0.08)' }, pointLabels: { color: '#A6AFC4', font: { size: 11 } } } } },
-    });
-  }
+  function renderTwinRadar(r) { twinRadar(charts, $('twinRadar'), r); }
 
   /* ---------- Источник вычислений ---------- */
   function setComputeHint(html, asHtml = false) {
@@ -361,11 +325,6 @@ import { escapeHtml } from './lib/format.js';
     if (!silent) { refreshFieldStates(); compute(); }
   }
 
-  /* ---------- Сегменты ---------- */
-  function syncSeg(containerId, dataKey, value) {
-    document.querySelectorAll(`#${containerId} button`).forEach((b) => b.classList.toggle('active', b.dataset[dataKey] === value));
-  }
-
   /* ---------- Врачебный режим: сохранение ассессмента в карту ----------
      Поля labs (клинические единицы) маппятся в BiomarkerBody сервера. Поля,
      которых нет в форме (onStatins) опускаем — у сервера есть значения по умолчанию. */
@@ -407,9 +366,9 @@ import { escapeHtml } from './lib/format.js';
   async function saveToPatient() {
     const id = $('patientSelect').value;
     const out = $('assessResult');
-    if (!id) { out.innerHTML = '<span style="color:var(--amber)">Выберите пациента</span>'; return; }
+    if (!id) { out.innerHTML = '<span data-sty="color:var(--amber)">Выберите пациента</span>'; return; }
     const { body, count } = buildBiomarkerBody();
-    if (count === 0) { out.innerHTML = '<span style="color:var(--amber)">Введите хотя бы один показатель (АД, ЛПНП, HbA1c, ИМТ…)</span>'; return; }
+    if (count === 0) { out.innerHTML = '<span data-sty="color:var(--amber)">Введите хотя бы один показатель (АД, ЛПНП, HbA1c, ИМТ…)</span>'; return; }
     const btn = $('assessBtn');
     btn.disabled = true;
     const prev = btn.textContent;
@@ -420,12 +379,12 @@ import { escapeHtml } from './lib/format.js';
       const recs = (r && r.recommendations) || [];
       const lvlRu = { LOW: 'низкий', MEDIUM: 'умеренный', HIGH: 'высокий', CRITICAL: 'критический' };
       out.innerHTML =
-        `<span style="color:var(--mint)">✓ Сохранено.</span> Риск: <b>${lvlRu[a.riskLevel] || a.riskLevel || '—'}</b>` +
+        `<span data-sty="color:var(--mint)">✓ Сохранено.</span> Риск: <b>${lvlRu[a.riskLevel] || a.riskLevel || '—'}</b>` +
         (a.cvRisk != null ? ` · ССЗ ${Number(a.cvRisk).toFixed(1)}%` : '') +
         (a.bioAge != null ? ` · биовозраст ${Math.round(a.bioAge)}` : '') +
         (recs.length ? ` · рекомендаций: ${recs.length}` : '');
     } catch (e) {
-      out.innerHTML = `<span style="color:var(--rose)">Ошибка: ${e && e.message ? e.message : 'не удалось сохранить'}</span>`;
+      out.innerHTML = `<span data-sty="color:var(--rose)">Ошибка: ${e && e.message ? e.message : 'не удалось сохранить'}</span>`;
     } finally {
       btn.disabled = false;
       btn.textContent = prev;
@@ -434,6 +393,8 @@ import { escapeHtml } from './lib/format.js';
 
   /* ---------- Инициализация ---------- */
   function init() {
+    observeDynamicStyles(); // применяет data-sty к innerHTML-рендерам (CSP: без style-src 'unsafe-inline')
+    initI18n(); // переключатель RU/EN (переведены шапка и навигация; поля/результаты — RU)
     buildGroups();
 
     document.querySelectorAll('#groups input, #age').forEach((el) => el.addEventListener('input', scheduleCompute));
@@ -448,7 +409,7 @@ import { escapeHtml } from './lib/format.js';
         if (!api) { setComputeHint('· API недоступен'); return; }
         setComputeHint('· проверяю сессию…');
         const ok = await api.auth.refresh().catch(() => false);
-        if (!ok) { setComputeHint('· <a href="login.html?redirect=labs.html" style="color:var(--cyan)">войти</a> для серверного режима', true); return; }
+        if (!ok) { setComputeHint('· <a href="login.html?redirect=labs.html" data-sty="color:var(--cyan)">войти</a> для серверного режима', true); return; }
         enableDoctorMode(); // авторизовались → открыть сохранение в карту
       }
       state.source = src;
@@ -467,6 +428,14 @@ import { escapeHtml } from './lib/format.js';
     $('loadBtn').addEventListener('click', () => $('fileInput').click());
     $('fileInput').addEventListener('change', (e) => { if (e.target.files[0]) importJson(e.target.files[0]); e.target.value = ''; });
     $('assessBtn').addEventListener('click', saveToPatient);
+
+    // «Детальный разбор →»: передаём собранный профиль (включая ОАК/кардиомаркеры)
+    // в predict.html через sessionStorage вместо простого перехода по ссылке.
+    const detailCta = $('detailCta');
+    if (detailCta) detailCta.addEventListener('click', (e) => {
+      e.preventDefault();
+      stashProfile(readProfile(), detailCta.getAttribute('href') || 'predict.html');
+    });
 
     // Демо-старт: показываем, что страница «живая», даже без ввода.
     compute();

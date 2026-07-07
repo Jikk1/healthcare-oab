@@ -728,3 +728,74 @@ body { background: var(--bg-0); overflow-x: hidden; }
   white-space: nowrap; z-index: 30;
   pointer-events: none;
 }
+
+/* ============================================================
+   Утилитарные/точечные классы — вынос inline style=
+   (CSP без style-src 'unsafe-inline'). Общие для dashboard/predict/labs.
+   ============================================================ */
+/* цвета */
+.u-cyan { color: var(--cyan); }
+.u-rose { color: var(--rose); }
+.u-amber { color: var(--amber); }
+.u-t3 { color: var(--text-3); }
+.u-tt { color: var(--text-tertiary); }
+.u-t3-400 { color: var(--text-3); font-weight: 400; }
+.u-tt-400 { color: var(--text-tertiary); font-weight: 400; }
+/* отступы/размеры */
+.m-0 { margin: 0; }
+.mb-6 { margin-bottom: 6px; }
+.mb-12 { margin-bottom: 12px; }
+.mb-14 { margin-bottom: 14px; }
+.mb-16 { margin-bottom: 16px; }
+.mb-20 { margin-bottom: 20px; }
+.mt-10 { margin-top: 10px; }
+.mt-14 { margin-top: 14px; }
+.mt-16 { margin-top: 16px; }
+.py-8 { padding: 8px 0; }
+.w-full { width: 100%; }
+.w-0 { width: 0; }
+.ovx { overflow-x: auto; }
+.h160 { height: 160px; }
+.h180 { height: 180px; }
+.h200 { height: 200px; }
+.h220 { height: 220px; }
+.h260 { height: 260px; }
+/* флекс/грид раскладки */
+.flex-8 { display: flex; gap: 8px; }
+.flex-c-8 { display: flex; align-items: center; gap: 8px; }
+.flex-between-wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.row-between-13 { display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
+.col-16 { display: flex; flex-direction: column; gap: 16px; }
+.col-12g { display: flex; flex-direction: column; gap: 12px; }
+.mt16-col8 { margin-top: 16px; display: flex; flex-direction: column; gap: 8px; }
+.grid-2-10 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.grid-2-16 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.grid-2-20 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.grid-21-20 { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }
+/* точечные компоненты */
+.slider-scale { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-tertiary); font-family: var(--font-mono); margin-top: 2px; }
+.dot-low, .dot-med, .dot-high, .dot-crit { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+.dot-low { background: var(--risk-low); }
+.dot-med { background: var(--risk-med); }
+.dot-high { background: var(--risk-high); }
+.dot-crit { background: var(--risk-crit); }
+.search-wrap { position: relative; margin-left: auto; }
+.search-ico { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-tertiary); }
+.search-input { padding-left: 32px; height: 34px; font-size: 13px; width: 220px; }
+.bio-head { font-size: 12px; color: var(--text-secondary); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.06em; font-family: var(--font-mono); }
+.stop-amber { stop-color: var(--amber); }
+.stop-rose { stop-color: var(--rose); }
+.final-risk-box { margin-top: 12px; padding: 10px 12px; background: var(--bg-elevated); border-radius: 8px; display: flex; justify-content: space-between; font-size: 12px; }
+.frisk-val { font-family: var(--font-mono); font-weight: 700; color: var(--rose); }
+.stat-box { padding: 14px; background: var(--bg-elevated); border-radius: 10px; text-align: center; }
+.stat-num { font-size: 22px; font-weight: 800; font-family: var(--font-display); letter-spacing: -0.03em; }
+.stat-cap { font-size: 11px; color: var(--text-tertiary); margin-top: 2px; }
+.econ-note { text-align: center; margin-top: 12px; font-size: 12px; color: var(--emerald); }
+.t3-13 { color: var(--text-3); font-size: 13px; }
+.empty-cell { text-align: center; padding: 40px; color: var(--text-3); }
+.doctor-label { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--text-2); margin-bottom: 6px; }
+.doctor-hint { color: var(--mint); font-weight: 400; font-family: var(--font-mono); font-size: 11px; }
+.patient-select { width: 100%; font: inherit; font-size: 13px; background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 9px; color: var(--text); padding: 8px 10px; margin-bottom: 10px; }
+.assess-result { margin-top: 10px; font-size: 12px; line-height: 1.5; }
+.sect-top { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 16px; }
+.login-hint { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 16px; font-size: 12px; color: var(--text-3); }

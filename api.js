@@ -254,6 +254,52 @@
     verify: () => request('/v1/audit/verify'),
   };
 
+  /* ---------- Отчёты: кольцевые диаграммы + Excel-экспорт ---------- */
+  // Экспорт возвращает бинарный .xlsx, а не JSON-конверт, поэтому — отдельный
+  // fetch: тянем blob и инициируем скачивание. При 401 один раз обновляем токен.
+  async function downloadXlsx(path, fallbackName, _retried = false) {
+    const headers = {};
+    if (state.accessToken) headers['Authorization'] = `Bearer ${state.accessToken}`;
+    const res = await fetch(buildUrl(path), { headers, credentials: 'include' });
+    if (res.status === 401 && !_retried && (await tryRefresh())) {
+      return downloadXlsx(path, fallbackName, true);
+    }
+    if (!res.ok) throw new ApiError(`Экспорт не удался (${res.status})`, { status: res.status });
+    const blob = await res.blob();
+    const cd = res.headers.get('Content-Disposition') || '';
+    const m = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(cd);
+    const name = (m && decodeURIComponent(m[1])) || fallbackName;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  // period: 'month'|'quarter'|'year'|'all'; format: 'xlsx'|'pdf'.
+  const qs = (o) => {
+    const p = Object.entries(o)
+      .filter(([, v]) => v != null && v !== '')
+      .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+      .join('&');
+    return p ? `?${p}` : '';
+  };
+  const reports = {
+    doctorStats: (period) => request('/v1/reports/doctor/stats' + qs({ period })),
+    patientStats: (id, period) =>
+      request(`/v1/reports/patient/${encodeURIComponent(id)}/stats` + qs({ period })),
+    downloadDoctor: ({ period, format = 'xlsx' } = {}) =>
+      downloadXlsx('/v1/reports/doctor/export' + qs({ period, format }), `doctor_report.${format}`),
+    downloadPatient: (id, { period, format = 'xlsx' } = {}) =>
+      downloadXlsx(
+        `/v1/reports/patient/${encodeURIComponent(id)}/export` + qs({ period, format }),
+        `patient_${id}_report.${format}`,
+      ),
+  };
+
   /* ---------- Адаптеры под текущий фронт ---------- */
   // Преобразует PatientDto сервера в форму строки PATIENTS из dashboard.js.
   const SEX_RU = { MALE: 'Муж', FEMALE: 'Жен', OTHER: '—' };
@@ -294,6 +340,7 @@
     predict,
     billing,
     audit,
+    reports,
     adapters: { patientToRow },
     ApiError,
   };

@@ -6,8 +6,13 @@
    Рисует: KPI, forest-plot HR, кривые выживания, калибровку, тест
    пропорциональности (Schoenfeld) и горизонты выживаемости.
    ============================================================ */
+import './lib/telemetry.js';
 import Chart from 'chart.js/auto';
 import snapshot from './cox-demo.json';
+import { applyDynamicStyles } from './lib/dom.js';
+import { initI18n } from './lib/i18n.js';
+
+initI18n(); // RU по умолчанию; переключатель [data-lang-toggle] в навигации
 
 const C = {
   teal: '#2dd4bf', tealBright: '#5eead4', sky: '#38bdf8', rose: '#ff5e7e',
@@ -77,14 +82,15 @@ function renderForest(r) {
       return `<div class="forest-row">
         <div class="nm">${c.name}</div>
         <div class="hr-track">
-          <div class="hr-ref" style="left:${pos(1)}%"><span>1.0</span></div>
-          <div class="hr-ci" style="left:${left}%;width:${Math.max(0, right - left)}%"></div>
-          <div class="hr-dot" style="left:${dot}%"></div>
+          <div class="hr-ref" data-sty="left:${pos(1)}%"><span>1.0</span></div>
+          <div class="hr-ci" data-sty="left:${left}%;width:${Math.max(0, right - left)}%"></div>
+          <div class="hr-dot" data-sty="left:${dot}%"></div>
         </div>
         <div class="hr-val"><b>HR ${fmt(c.hazardRatio, 2)}</b><br>${fmt(c.ci95[0], 2)}–${fmt(c.ci95[1], 2)} · p${sig ? '<0.05' : '=' + fmt(c.pValue, 2)}</div>
       </div>`;
     })
     .join('');
+  applyDynamicStyles($('forest'));
 }
 
 function renderSurvival(r) {
@@ -152,8 +158,8 @@ function renderPH(r) {
 function renderHorizons(r) {
   $('horizons').innerHTML = r.survival
     .map(
-      (s) => `<div style="margin-bottom:14px">
-        <div style="font-size:0.9rem;margin-bottom:8px;color:var(--text)">${s.label}</div>
+      (s) => `<div class="surv-block">
+        <div class="surv-label">${s.label}</div>
         <div class="horizons">
           ${s.horizons.map((h) => `<div class="horizon-card"><div class="hv">${Math.round(h.survival * 100)}%</div><div class="hl">${h.label}</div></div>`).join('')}
         </div>

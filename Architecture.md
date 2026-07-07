@@ -1,99 +1,86 @@
-# HealthCareOAB+ — Архитектура (v2, premium)
+# HealthCareOAB+ — Frontend Architecture
 
-## Структура файлов
+> Обзор фронтенда. Бэкенд описан отдельно в [`backend/ARCHITECTURE.md`](backend/ARCHITECTURE.md).
+> Ключевые решения зафиксированы как ADR в [`docs/adr/`](docs/adr/).
 
-```
-ariadna/
-├── Architecture.md
-├── index.html              ← премиум landing page
-├── dashboard.html          ← интерфейс врача (демо)
-├── styles.css              ← единая стилевая система (токены + компоненты)
-├── dashboard.css           ← дашборд-специфичные стили (поверх styles.css)
-├── app.js                  ← landing: анимации, canvas mesh, live-демо
-├── charts.js               ← палитра + Chart.js defaults + sparklines
-└── dashboard.js            ← логика дашборда: пациенты, сценарии, графики
-```
+## 1. Обзор
 
-## Дизайн-концепция: Bio-Tech Precision Dark v2
+Многостраничное приложение (MPA) на **Vanilla JS + Vite**. Пять публичных
+маркетинговых/научных страниц + инструменты (OmniRisk, «Анализы») + кабинет врача
+(дашборд) + вход. Сборка Vite даёт code-splitting по страницам, npm-зависимости и
+хэшированные ассеты; рантайм — обычный ES-модуль без фреймворка (см. [ADR-0001](docs/adr/0001-vite-vanilla.md)).
 
-- **Фон:** `#05070F` (obsidian) + мягкая RGB-шумовая текстура (SVG turbulence)
-- **Aurora-градиент:** `#00E5FF → #A78BFA → #FF5E7E` для ключевых акцентов
-- **Primary:** `linear-gradient(135deg, #00E5FF, #4AFFAA)` — CTA, KPI, прогресс
-- **Semantic:** cyan (info) · mint (ok) · amber (warn) · rose (risk)
-- **Типографика:** Space Grotesk (display) · Inter (body) · JetBrains Mono (code/metrics)
-- **Стиль:** glassmorphism панели, animated mesh particles, scroll-reveal,
-  card spotlight, pulsating status dots, smooth Lenis-скролл
+Дизайн-принцип рантайма — **прогрессивное улучшение** ([ADR-0004](docs/adr/0004-progressive-enhancement.md)):
+каждая страница работает как самодостаточное демо (расчёты в браузере, синтетические
+данные), а при наличии сессии подтягивает живые данные из API.
 
-## CSS-токены (styles.css)
+## 2. Страницы (точки входа Vite)
 
-```css
---bg-0: #05070F;      --bg-1: #090C18;      --bg-2: #0F1424;
---surface: rgba(255,255,255,0.035);
---surface-hi: rgba(255,255,255,0.065);
---border: rgba(255,255,255,0.07);
---border-hi: rgba(255,255,255,0.14);
---text: #EAF0FA;      --text-2: #A6AFC4;     --text-3: #6B7489;
---cyan: #00E5FF;      --mint: #4AFFAA;
---amber: #FFB547;     --rose: #FF5E7E;       --violet: #A78BFA;
---grad-primary / --grad-aurora / --grad-warm
---radius / --radius-lg / --radius-xl
---ease-out / --ease-in-out
-```
+| Страница | Сущность | Entry JS | CSS |
+|---|---|---|---|
+| `index.html` | Лендинг | `app.js` | `styles.css` |
+| `cox.html` | Научная страница (модель Кокса) | `cox.js` | `cox.css` |
+| `cox-demo.html` | Живое демо движка Кокса | `cox-demo.js` | `cox.css` |
+| `predict.html` | OmniRisk (слайдеры) | `predict.js` (+`omnirisk.js`) | `styles.css`+`dashboard.css`+`predict.css` |
+| `labs.html` | Ввод анализов → прогноз | `labs.js` (+`omnirisk.js`) | `styles.css`+`dashboard.css`+`labs.css` |
+| `dashboard.html` | Кабинет врача | `dashboard.js` (+`charts.js`,`api.js`) | `styles.css`+`dashboard.css` |
+| `login.html` | Вход | `login.js` (+`api.js`) | `styles.css`+`login.css` |
 
-## Модули JS
+Входные HTML перечислены в `vite.config.js`; JS/CSS, на которые они ссылаются,
+Vite обнаруживает и бандлит автоматически.
 
-### app.js (landing)
-- Lenis smooth scroll + якорные переходы
-- `IntersectionObserver` reveal-on-scroll (staggered)
-- Interactive canvas particle mesh в hero (притягивается к курсору)
-- CountUp для метрик (с поддержкой десятичных)
-- Live clinic counter (случайный дрейф)
-- Card mouse-spotlight (`--mx`, `--my` CSS vars)
-- Live demo: 3 слайдера + 3 чипа → пересчёт профиля рисков с
-  анимированным SVG-arc gauge и линейными барами
-- Pricing toggle (ежемесячно ↔ ежегодно −25%)
-- Progress bars анимация при входе в viewport
-- CTA email валидация
+## 3. Общие модули
 
-### charts.js (shared)
-- `Ariadna.COLORS` — единая палитра для Chart.js
-- `Ariadna.applyChartDefaults()` — глобальные defaults (тултипы, шрифты, grid)
-- `Ariadna.areaGradient()` — вертикальный градиент для area-fill
-- `Ariadna.sparkline()` — минимальный SVG-спарклайн для KPI-карточек
-- `Ariadna.riskColor(pct)` — семантический цвет по уровню риска
+- **`api.js`** — тонкий клиент над `fetch` для `/v1`. Разворачивает конверт
+  `{data|error, meta}`, кидает `ApiError`, при 401 один раз обновляет access-токен
+  по refresh-cookie. Access-токен живёт **только в памяти вкладки**, не в
+  localStorage ([ADR-0003](docs/adr/0003-token-in-memory.md)). База API — из
+  `window.HC_CONFIG.apiBase` (рантайм `/config.js`) → `import.meta.env.VITE_API_BASE`
+  → `<meta name="hc-api-base">`.
+- **`omnirisk.js`** — детерминированный браузерный движок рисков (используется
+  predict/labs). Чистые функции, покрыты тестами.
+- **`charts.js`** — палитра `window.Ariadna.*` + defaults Chart.js + sparklines
+  (дашборд). Chart.js подаётся как `window.Chart` через `vendor-chart.js`.
+- **`vendor-chart.js`** — `import Chart from 'chart.js/auto'; window.Chart = Chart`
+  (реальный модуль вместо inline `<script>` ради CSP; см. [ADR-0005](docs/adr/0005-strict-csp.md)).
+- **`lib/`** — переиспользуемое, покрытое тестами:
+  - `clinical.js` — референсные диапазоны, статусы полей, маппинг биомаркеров.
+  - `format.js` — `escapeHtml` (защита от stored-XSS во всех innerHTML-стоках).
+  - `dom.js` — `applyDynamicStyles`/`observeDynamicStyles`: динамические стили через
+    CSSOM из `data-sty` (CSP без `style-src 'unsafe-inline'`).
+  - `i18n.js` — рантайм-переключение RU/EN ([ADR-0008](docs/adr/0008-i18n.md)).
+  - `telemetry.js` — перехват ошибок + Core Web Vitals (side-effect импорт в каждой странице).
+- **`locales/en.js`** — EN-словарь для i18n (RU — источник в разметке).
 
-### dashboard.js
-- Глобальные обработчики: `toggleSidebar`, `switchPage`, `showToastDB`, `refreshData`
-- Синтетический dataset из 10 пациентов
-- Таблицы: overview (топ-5 критичных) + полный список с фильтрами/поиском
-- Chart.js визуализации:
-  - Trend (многолинейный area с фильтрами ССЗ/СД2/Онко)
-  - Risk distribution (doughnut)
-  - Radar (пациент vs норма по 8 системам)
-  - Timeline (прогноз с/без вмешательства)
-  - Scenario bars (горизонтальные)
-  - Compliance (doughnut)
-  - Population bio-age (grouped bars)
-  - Economics (area)
-- Custom SVG:
-  - SHAP-waterfall (модифицируемые факторы подсвечены)
-  - Heatmap (возрастные группы × типы рисков)
-  - Bio-age animated ring
-- Scenario simulator: 5 слайдеров → реальное пересчитывание 3 рисков + бейджа
+## 4. Безопасность и соответствие (реализовано)
 
-## Производительность
+- **CSP без `'unsafe-inline'`** ни в `script-src`, ни в `style-src` ([ADR-0005](docs/adr/0005-strict-csp.md)).
+  Inline-обработчики → делегирование по `data-action`; inline-стили → CSS-классы;
+  динамика → `data-sty`+CSSOM; шрифты — self-hosted (`@fontsource`), внешних origin нет.
+  `connect-src` выводится на старте контейнера из `$API_BASE`.
+- **XSS** — `escapeHtml` на всех user/PHI innerHTML-стоках.
+- **Заголовки** — HSTS, COOP, nosniff, X-Frame-Options, Permissions-Policy,
+  Referrer-Policy (`security-headers.conf.template`, рендерится entrypoint'ом).
 
-- `preconnect` для fonts и CDN + `preload` для app.js
-- Canvas mesh deps off: mouse-disabled → idle throttle
-- Chart.js анимации на mount, disabled на sliders (`update('none')`)
-- `prefers-reduced-motion` отключает все анимации
-- Статические изображения отсутствуют — всё SVG/CSS → bundle < 100 KB
+## 5. Доступность / SEO / перф
 
-## Доступность и SEO
+- **A11y (WCAG AA)** — скип-ссылки, фокусируемые `main`-landmarks, `:focus-visible`,
+  `aria-label` на иконочных кнопках, `aria-live` на динамических регионах,
+  `prefers-reduced-motion`.
+- **SEO** — `public/robots.txt` + `public/sitemap.xml`, per-page canonical/OG/Twitter,
+  `noindex` на dashboard/login, JSON-LD `SoftwareApplication` на лендинге.
+- **Перф** — self-hosted subset-woff2 (нет внешнего RTT), Chart.js/Lenis из npm,
+  анимации off на слайдерах и при reduced-motion, ассеты < ~100 KB (без Chart).
 
-- `<meta>` OG + Twitter Card
-- JSON-LD `SoftwareApplication` + `AggregateRating`
-- Семантическая HTML-разметка (`<nav>`, `<section>`, `<footer>`, `<details>`)
-- Focus styles на всех интерактивных элементах
-- `aria-label` на кнопках-иконках
-- Контраст WCAG AA для тёмной темы
+## 6. Развёртывание
+
+Vite build → `dist/` раздаётся rootless-nginx (`frontend.Dockerfile`).
+`docker-entrypoint.sh` на старте контейнера генерирует `/config.js` из `$API_BASE`
+([ADR-0007](docs/adr/0007-runtime-config.md)) и рендерит CSP `connect-src`. k8s-манифест —
+`backend/infra/k8s/frontend.yaml`.
+
+## 7. Дизайн-токены (styles.css)
+
+Тёмная тема «Bio-Tech Precision»: фон `#05070F`, aurora-градиент
+`#00E5FF → #A78BFA → #FF5E7E`, семантические cyan/mint/amber/rose. Шрифты —
+Space Grotesk (display) · Inter (body) · JetBrains Mono (mono), self-hosted variable.

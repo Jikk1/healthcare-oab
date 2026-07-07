@@ -1,0 +1,32 @@
+# ============================================================
+# HealthCareOAB+ — общие security-заголовки (включается во все location)
+# ------------------------------------------------------------
+# В nginx add_header НЕ наследуется в location, где есть свой add_header,
+# поэтому этот файл подключается (include) в server и в каждом таком location.
+#
+# Это ШАБЛОН: docker-entrypoint.sh подставляет __CSP_CONNECT_SRC__ из окружения
+# и пишет готовый /etc/nginx/security-headers.conf перед стартом nginx.
+# ============================================================
+
+add_header X-Content-Type-Options "nosniff"                          always;
+add_header X-Frame-Options        "DENY"                             always;
+add_header Referrer-Policy        "strict-origin-when-cross-origin"  always;
+add_header Cross-Origin-Opener-Policy "same-origin"                  always;
+add_header Permissions-Policy     "camera=(), microphone=(), geolocation=(), payment=(), usb=()" always;
+
+# HSTS: предполагается терминация TLS на ingress/прокси (контейнер слушает :8081 http).
+add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+# Content-Security-Policy.
+# - script-src 'self' — БЕЗ 'unsafe-inline': inline-обработчики переведены на
+#   addEventListener (делегирование в dashboard.js), inline <script type=module>
+#   вынесены в отдельные модули (vendor-chart.js, cox.js, импорт Lenis в app.js).
+#   JSON-LD (<script type="application/ld+json">) не исполняется и CSP не нарушает.
+# - style-src 'self' — БЕЗ 'unsafe-inline': inline style-атрибуты вынесены в CSS-классы,
+#   inline <style> — в отдельные .css, а динамика (цвета риска, ширины баров) ставится
+#   из JS через CSSOM (data-sty → element.style, см. lib/dom.js).
+# - font-src 'self' — шрифты self-hosted (Vite бандлит @fontsource woff2); внешних CDN нет.
+# - connect-src __CSP_CONNECT_SRC__ — подставляется на старте контейнера: 'self'
+#   плюс origin из $API_BASE (или явный $CSP_CONNECT_SRC). Пустой $API_BASE ⇒ 'self'.
+# - frame-ancestors 'none' — защита от кликджекинга (дублирует X-Frame-Options).
+add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src __CSP_CONNECT_SRC__; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests" always;

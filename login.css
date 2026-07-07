@@ -1,0 +1,72 @@
+/* ============================================================
+   HealthCareOAB+ — стили login.html (вынесены из inline <style> ради CSP
+   без style-src 'unsafe-inline').
+   ============================================================ */
+.auth-lang { margin-left: auto; font-size: 12px; }
+.auth-body { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
+.auth-body > main { width: 100%; max-width: 420px; }
+.auth-glow {
+  position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(60% 50% at 50% 0%, rgba(0,229,255,0.10), transparent 70%),
+    radial-gradient(50% 50% at 80% 100%, rgba(167,139,250,0.10), transparent 70%);
+}
+.auth-card {
+  width: 100%; max-width: 420px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 38px 34px;
+  backdrop-filter: blur(14px);
+  box-shadow: 0 30px 80px -30px rgba(0,0,0,0.7);
+}
+.auth-brand {
+  font-family: var(--font-display); font-weight: 600; font-size: 19px;
+  letter-spacing: -0.01em; color: var(--text); margin-bottom: 26px;
+  display: flex; align-items: center; gap: 9px;
+}
+.auth-brand .mark {
+  width: 30px; height: 30px; display: grid; place-items: center;
+  border-radius: 9px; background: var(--grad-primary); color: #04121A; font-size: 17px;
+}
+.auth-brand span { color: var(--cyan); }
+.auth-card h1 {
+  font-family: var(--font-display); font-weight: 600; font-size: 26px;
+  color: var(--text); margin: 0 0 6px;
+}
+.auth-sub { color: var(--text-3); font-size: 14px; margin: 0 0 26px; }
+.auth-field { margin-bottom: 18px; }
+.auth-field.is-hidden { display: none; }
+.auth-field label {
+  display: block; font-size: 12px; letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--text-2); margin-bottom: 8px;
+}
+.auth-field input {
+  width: 100%; padding: 13px 15px;
+  background: var(--bg-2); border: 1px solid var(--border-hi);
+  border-radius: var(--radius-sm); color: var(--text); font-size: 15px;
+  transition: border-color .2s var(--ease-out), box-shadow .2s var(--ease-out);
+}
+.auth-field input::placeholder { color: var(--text-3); }
+.auth-field input:focus {
+  outline: none; border-color: var(--cyan);
+  box-shadow: 0 0 0 3px rgba(0,229,255,0.14);
+}
+.auth-field input[inputmode="numeric"] {
+  font-family: var(--font-mono); letter-spacing: 0.4em; text-align: center;
+}
+.auth-error {
+  display: flex; gap: 9px; align-items: flex-start;
+  background: rgba(255,94,126,0.08); border: 1px solid rgba(255,94,126,0.3);
+  color: #FFC2CE; border-radius: var(--radius-sm);
+  padding: 11px 14px; font-size: 13.5px; margin-bottom: 18px;
+}
+.auth-error[hidden] { display: none; }
+.auth-submit { width: 100%; justify-content: center; margin-top: 4px; }
+.auth-submit[disabled] { opacity: .65; cursor: progress; }
+.auth-hint {
+  margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--border);
+  font-size: 12.5px; color: var(--text-3); line-height: 1.7;
+}
+.auth-hint code {
+  font-family: var(--font-mono); color: var(--text-2);
+  background: var(--bg-2); padding: 1px 6px; border-radius: 6px;
+}

@@ -20,8 +20,11 @@ FROM nginxinc/nginx-unprivileged:1.27-alpine
 USER root
 
 # Site config (listens on :8081, see nginx.conf) + shared security headers.
+# The headers file is rendered at container start from its template (the
+# entrypoint substitutes the CSP connect-src), so ship the template and a
+# writable placeholder the unprivileged user (uid 101) can overwrite.
 COPY nginx.conf /etc/nginx/conf.d/default.conf
-COPY security-headers.conf /etc/nginx/security-headers.conf
+COPY security-headers.conf.template /etc/nginx/security-headers.conf.template
 
 # Built bundle. /config.js (from public/) ships inside dist and is overwritten
 # at container start by the entrypoint below.
@@ -30,7 +33,9 @@ COPY --from=build --chown=101:101 /app/dist/ /usr/share/nginx/html/
 # Runtime config generator (writes config.js from $API_BASE, then execs nginx).
 COPY docker-entrypoint.sh /docker-entrypoint.hc.sh
 RUN chmod +x /docker-entrypoint.hc.sh \
-    && chown 101:101 /usr/share/nginx/html
+    && chown 101:101 /usr/share/nginx/html \
+    && touch /etc/nginx/security-headers.conf \
+    && chown 101:101 /etc/nginx/security-headers.conf
 
 USER 101
 EXPOSE 8081

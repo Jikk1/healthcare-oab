@@ -1,8 +1,18 @@
 /* ============================================================
    HealthCareOAB+ — Landing interactions
    ============================================================ */
+// Lenis импортируется как модуль (а не из inline <script>), чтобы CSP мог
+// обойтись без script-src 'unsafe-inline'. Бандлится Vite, работает офлайн.
+import './lib/telemetry.js';
+import Lenis from 'lenis';
+import { initI18n } from './lib/i18n.js';
+
 (() => {
   'use strict';
+
+  // Локализация: применяет сохранённый язык (RU по умолчанию) и включает
+  // переключатель [data-lang-toggle]. Пока переведены навигация и hero лендинга.
+  initI18n();
 
   /* ---------- Preloader ---------- */
   const hidePreloader = () => {
@@ -15,8 +25,8 @@
 
   /* ---------- Lenis smooth scroll (optional) ---------- */
   let lenis = null;
-  if (window.Lenis) {
-    lenis = new window.Lenis({
+  if (Lenis) {
+    lenis = new Lenis({
       duration: 1.15,
       easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
       smoothWheel: true,
@@ -330,6 +340,10 @@
   if (tYr) tYr.addEventListener('click', () => setBilling(true));
 
   /* ---------- CTA form ---------- */
+  // Раньше отправку гасил inline onsubmit="return false" — переносим на слушатель
+  // (CSP без script-src 'unsafe-inline').
+  const ctaForm = document.getElementById('ctaForm');
+  if (ctaForm) ctaForm.addEventListener('submit', (e) => e.preventDefault());
   const ctaBtn = document.getElementById('ctaBtn');
   const ctaEmail = document.getElementById('ctaEmail');
   if (ctaBtn && ctaEmail) {
