@@ -799,3 +799,9 @@ body { background: var(--bg-0); overflow-x: hidden; }
 .assess-result { margin-top: 10px; font-size: 12px; line-height: 1.5; }
 .sect-top { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 16px; }
 .login-hint { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 16px; font-size: 12px; color: var(--text-3); }
+
+/* Демо-режим: явно предупреждаем, что введённые данные никуда не сохраняются. */
+.demo-banner { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; padding: 10px 12px; font-size: 12.5px; line-height: 1.45; color: var(--amber); background: color-mix(in srgb, var(--amber) 10%, transparent); border: 1px solid color-mix(in srgb, var(--amber) 35%, transparent); border-radius: 10px; }
+.demo-banner b { font-weight: 600; }
+.demo-banner a { color: var(--cyan); }
+.demo-banner .demo-ico { flex: 0 0 auto; }

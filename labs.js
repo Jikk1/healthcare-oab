@@ -8,7 +8,7 @@
    и ширину доверительных интервалов, а не ломает расчёт.
    ============================================================ */
 import './lib/telemetry.js';
-import { resolveRange, fieldStatus, BIOMARKER_MAP, mapBiomarkers } from './lib/clinical.js';
+import { resolveRange, fieldStatus, mapBiomarkers } from './lib/clinical.js';
 import { escapeHtml } from './lib/format.js';
 import { observeDynamicStyles } from './lib/dom.js';
 import { initI18n } from './lib/i18n.js';
@@ -330,14 +330,15 @@ import {
      которых нет в форме (onStatins) опускаем — у сервера есть значения по умолчанию. */
   // Считываем значения нужных полей из DOM и отдаём чистому мапперу из lib.
   function buildBiomarkerBody() {
+    // Собираем ВСЕ введённые показатели формы: типизированные колонки маппер
+    // разложит по ключам BiomarkerBody, остальное сохранит в labPanel —
+    // ни один введённый анализ не теряется.
     const values = {};
-    for (const fid of Object.keys(BIOMARKER_MAP)) {
-      const f = FIELD_BY_ID.get(fid);
-      const v = f ? fieldValue(f) : undefined;
-      if (v !== undefined) values[fid] = v;
+    for (const f of FIELDS) {
+      const v = fieldValue(f);
+      if (v !== undefined) values[f.id] = v;
     }
-    const famF = FIELD_BY_ID.get('familyCv');
-    const familyCv = famF ? fieldValue(famF) : undefined;
+    const familyCv = values.familyCv;
     return mapBiomarkers(values, { smokingStatus: state.smoke, familyCv });
   }
 
@@ -347,8 +348,15 @@ import {
     const ok = await api.auth.refresh().catch(() => false);
     const box = $('doctorBox');
     const loginHint = $('doctorLoginHint');
-    if (!ok) { if (box) box.hidden = true; if (loginHint) loginHint.hidden = false; return; }
+    const banner = $('demoBanner');
+    if (!ok) {
+      if (box) box.hidden = true;
+      if (loginHint) loginHint.hidden = false;
+      if (banner) banner.hidden = false; // нет сессии → демо-режим, данные не сохраняются
+      return;
+    }
     if (loginHint) loginHint.hidden = true;
+    if (banner) banner.hidden = true; // врач вошёл → сохранение в карту доступно
     try {
       const res = await api.patients.list({ pageSize: 100 });
       const items = (res && res.items) || [];
