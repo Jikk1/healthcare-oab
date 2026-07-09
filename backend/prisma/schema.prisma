@@ -12,7 +12,10 @@
 // ============================================================
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  // "native" for local dev; "debian-openssl-3.0.x" for the bookworm-slim
+  // runtime image (Debian 12 / OpenSSL 3.0) so the container finds its engine.
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
 datasource db {
@@ -281,6 +284,17 @@ model BiomarkerSet {
   hba1c         Float? // %
   bmi           Float? // kg/m^2
   egfr          Float? // mL/min/1.73m^2
+  // Complete blood count (CBC)
+  hemoglobin    Float? // g/L
+  hematocrit    Float? // %
+  wbc           Float? // 10^9/L
+  platelets     Float? // 10^9/L
+  neutrophils   Float? // 10^9/L
+  lymphocytes   Float? // 10^9/L
+  esr           Float? // mm/h
+  // Full raw panel as entered by the clinician (field id -> value), so no
+  // entered analyte is ever lost even when it has no typed column yet.
+  labPanel      Json?
   // Behaviour
   smokingStatus   SmokingStatus @default(NEVER)
   packYears       Float         @default(0)
