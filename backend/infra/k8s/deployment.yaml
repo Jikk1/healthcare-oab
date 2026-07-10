@@ -1,6 +1,10 @@
 # ============================================================
 # HealthCareOAB+ API — Kubernetes deployment
 # Apply order: namespace → secret/configmap → migrate Job → deployment/service/hpa → ingress
+# Images are published by .github/workflows/release.yml on every push to main.
+# GHCR packages are private by default: either make the package public or add
+# an imagePullSecret (kubectl create secret docker-registry ghcr-pull ...) and
+# reference it via spec.template.spec.imagePullSecrets.
 # ============================================================
 apiVersion: v1
 kind: Namespace
@@ -51,7 +55,7 @@ spec:
       restartPolicy: Never
       containers:
         - name: migrate
-          image: ghcr.io/healthcare-oab/api:latest
+          image: ghcr.io/jikk1/healthcare-oab/api:latest
           command: ["npx", "prisma", "migrate", "deploy"]
           envFrom:
             - secretRef:
@@ -89,7 +93,7 @@ spec:
         fsGroup: 10001
       containers:
         - name: api
-          image: ghcr.io/healthcare-oab/api:latest
+          image: ghcr.io/jikk1/healthcare-oab/api:latest
           ports:
             - containerPort: 8080
           envFrom:

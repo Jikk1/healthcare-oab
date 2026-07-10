@@ -1,7 +1,8 @@
 # ============================================================
 # HealthCareOAB+ frontend (static nginx) — Kubernetes manifest
 # Apply after the API manifest (deployment.yaml).
-# Image built from frontend.Dockerfile at the repo root.
+# Image built from frontend.Dockerfile at the repo root and published to GHCR
+# by .github/workflows/release.yml (see deployment.yaml header for pull-secret notes).
 # ============================================================
 apiVersion: v1
 kind: ConfigMap
@@ -41,7 +42,7 @@ spec:
         fsGroup: 101
       containers:
         - name: web
-          image: ghcr.io/healthcare-oab/web:latest
+          image: ghcr.io/jikk1/healthcare-oab/web:latest
           ports:
             - containerPort: 8081
           env:
