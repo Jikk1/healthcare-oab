@@ -164,6 +164,23 @@ make help        # все цели
 (`frontend.yaml`) и ночного бэкапа БД (`backup-cronjob.yaml`). Smoke-тест запускайте
 как post-deploy-гейт: `SMOKE_BASE_URL=https://api.… node backend/scripts/smoke.mjs`.
 
+**Образы:** каждый push в `main` (и тег `v*`) публикует прод-образы в GHCR через
+`.github/workflows/release.yml`:
+- `ghcr.io/jikk1/healthcare-oab/api` — бэкенд (`backend/Dockerfile`);
+- `ghcr.io/jikk1/healthcare-oab/web` — фронтенд (`frontend.Dockerfile`).
+
+Теги: `latest` (main), `sha-<короткий SHA>` (для пиннинга в манифестах), `X.Y.Z` (git-тег `vX.Y.Z`).
+GHCR-пакеты по умолчанию приватные — для пулла из кластера сделайте пакет публичным
+или создайте `imagePullSecret` (см. комментарий в `deployment.yaml`).
+
+Процедура деплоя (когда появится кластер и домен):
+1. Заменить плейсхолдер-домен `*.healthcare-oab.example` на реальный (HTML canonical/OG,
+   `public/sitemap.xml`, `public/robots.txt`, k8s-манифесты).
+2. Сгенерировать секреты (см. блок ниже) и завести их в секрет-менеджер кластера.
+3. `kubectl apply -f backend/infra/k8s/deployment.yaml` → дождаться Job миграций →
+   `kubectl apply -f backend/infra/k8s/frontend.yaml` и `backup-cronjob.yaml`.
+4. Прогнать smoke-гейт: `SMOKE_BASE_URL=https://api.<домен> node backend/scripts/smoke.mjs`.
+
 > ⚠️ **Безопасность:** локальный `backend/.env` уже содержит свежесгенерированные
 > случайные секреты (а не публичные демо-значения). Для **прод-деплоя** генерируйте
 > отдельные секреты и держите их в секрет-менеджере (Vault / AWS Secrets Manager),
