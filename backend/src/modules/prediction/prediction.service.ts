@@ -81,6 +81,13 @@ export const predictionService = {
             hba1c: bio.hba1c ?? undefined,
             bmi: bio.bmi ?? undefined,
             egfr: bio.egfr ?? undefined,
+            hemoglobin: bio.hemoglobin ?? undefined,
+            hematocrit: bio.hematocrit ?? undefined,
+            wbc: bio.wbc ?? undefined,
+            platelets: bio.platelets ?? undefined,
+            neutrophils: bio.neutrophils ?? undefined,
+            lymphocytes: bio.lymphocytes ?? undefined,
+            esr: bio.esr ?? undefined,
           }
         : undefined,
       lifestyle: bio

@@ -7,7 +7,11 @@
 | **Фронтенд** | корень репозитория | статический HTML / CSS / JS | Лендинг (`index.html`) + демо-дашборд врача (`dashboard.html`) |
 | **Бэкенд** | `backend/` | Node 20+, Fastify, Prisma, PostgreSQL, Redis | Production-API: аутентификация, пациенты, оценка рисков, биллинг |
 
-> **Важно:** сейчас фронтенд работает на **синтетических данных** и не обращается к бэкенду. Это две самостоятельные части, которые запускаются по отдельности (см. ниже «Чего не хватает»).
+> **Важно:** без входа фронтенд работает в **демо-режиме** на синтетических данных
+> (данные никуда не сохраняются — на страницах виден баннер об этом). После входа
+> врача (`login.html`) страницы `labs.html` и `predict.html` считают риск на сервере
+> и **сохраняют введённые показатели в карту пациента (БД)** через API. Дашборд
+> (`dashboard.html`) при активной сессии тянет живых пациентов из `/v1/patients`.
 
 ---
 
@@ -56,11 +60,12 @@ npm run preview  # локальный предпросмотр собранно�
 
 Бэкенду нужны **PostgreSQL** и **Redis**. Есть два пути.
 
-### Путь А — через Docker (проще всего)
+### Путь А — БД в Docker, API на хосте (проще всего)
 
 ```bash
 cd backend
 docker compose up -d postgres redis      # поднять только БД и кэш
+cp .env.example .env                      # DATABASE_URL уже указывает на localhost:5432
 npm install
 npm run prisma:generate
 npm run prisma:deploy                     # применить миграции
@@ -68,9 +73,40 @@ npm run db:seed                           # тестовые данные
 npm run dev                               # API на http://localhost:8080
 ```
 
-Полный стек с мониторингом (Prometheus/Grafana/Jaeger) **и фронтендом**: `docker compose up -d`.
+**Тестовые учётки после сида** (для входа на фронте через `login.html`):
+
+| Роль | Email | Пароль |
+|------|-------|--------|
+| Врач | `clinician@oab-clinic.demo` | `OabDemo_Clinician_2026!` |
+| Владелец | `owner@oab-clinic.demo` | `OabDemo_Owner_2026!` |
+
+Плюс 10 демо-пациентов в организации «Клиника OAB · Demo».
+
+### Путь А+ — весь стек в Docker (API тоже в контейнере)
+
+```bash
+cd ..    # в корень репозитория (compose-файл лежит в backend/)
+docker compose -f backend/docker-compose.yml up -d --build postgres redis api
+# миграции и сид — С ХОСТА против опубликованного порта 5432 (см. оговорку ниже):
+cd backend && npx prisma migrate deploy && npx prisma db seed
+curl http://localhost:8080/health/ready   # → {"status":"ready","checks":{"database":true,"redis":true}}
+```
+
+> **Две оговорки для контейнерного API (уже учтены в репозитории):**
+> 1. Prisma-движок собирается под образ `node:20-bookworm-slim` (Debian 12 / OpenSSL 3.0),
+>    поэтому в `schema.prisma` задан `binaryTargets = ["native","debian-openssl-3.0.x"]` —
+>    без него контейнер `api` падает в crash-loop.
+> 2. Прод-образ работает под non-root и не содержит `prisma` CLI, поэтому
+>    `prisma migrate deploy`/`db:seed` **изнутри контейнера не выполнить** — запускайте их
+>    **с хоста** (порт 5432 опубликован, `.env` уже настроен на `localhost:5432`).
+
+Полный стек с мониторингом (Prometheus/Grafana/Jaeger) **и фронтендом**: `docker compose -f backend/docker-compose.yml up -d`.
 Фронтенд поднимется отдельным nginx-контейнером (`web`) на <http://localhost:8081>;
 адрес API он берёт из переменной `API_BASE` (см. `frontend.Dockerfile` и `config.js`).
+
+> **Windows:** на этой машине стек работает через **Docker Desktop + WSL2**. `make` не
+> установлен — используйте команды `docker compose …` напрямую (как выше). Если `docker`
+> не находится в PATH свежего терминала — перезапустите оболочку после установки Docker Desktop.
 
 ### Путь Б — без Docker
 
@@ -86,11 +122,20 @@ npm run dev                               # API на http://localhost:8080
 
 ```bash
 cd backend
-npm test          # 38 unit-тестов
+npm test          # backend unit-тесты (live-stack интеграция скипается по умолчанию)
 npm run typecheck # проверка типов
 npm run smoke     # post-deploy smoke-тест против запущенного API
 curl http://localhost:8080/health/live
 ```
+
+Live-stack интеграция (нужен поднятый Postgres/Redis) — под флагом `RUN_INTEGRATION=1`.
+На холодном Windows-хосте поднимите таймаут хука, иначе `beforeAll` не успевает:
+
+```bash
+RUN_INTEGRATION=1 npx vitest run test/integration/api.test.ts --hookTimeout=60000
+```
+
+Фронтенд-тесты (из корня репозитория): `npm test` — vitest по `test/frontend/`.
 
 ---
 
@@ -135,12 +180,15 @@ make help        # все цели
 
 ```
 .
-├── index.html / dashboard.html   # страницы
+├── index.html / dashboard.html   # лендинг + дашборд врача
+├── login.html                    # вход врача (сессия для серверного режима)
+├── labs.html / predict.html      # ввод анализов и OmniRisk-прогноз (сохранение в карту при входе)
 ├── styles.css / dashboard.css    # стили
 ├── app.js / dashboard.js / charts.js   # логика фронтенда
+├── lib/clinical.js               # маппинг анализов → BiomarkerBody (+ labPanel), покрыт тестами
 ├── api.js                         # клиент API (адрес см. «Конфигурация адреса API»)
 ├── public/config.js               # runtime-конфиг (адрес API), не бандлится Vite
-├── vite.config.js                 # многостраничная сборка (5 точек входа)
+├── vite.config.js                 # многостраничная сборка (7 точек входа)
 ├── package.json                   # npm run dev / build / preview (Vite)
 ├── frontend.Dockerfile / nginx.conf / docker-entrypoint.sh  # контейнер фронта (multi-stage build)
 └── backend/                       # API (см. backend/README.md)
@@ -161,10 +209,10 @@ make help        # все цели
 
 ## Чего не хватает для «полностью готового» сайта
 
-Код фронтенда и бэкенда исправен, но это пока две несоединённые части. Чтобы получить настоящий продукт:
+Фронтенд и бэкенд уже соединены на ключевых сценариях (вход, пациенты, сохранение анализов и прогнозов в БД). Чтобы довести до полноценного продукта:
 
-1. **Связать фронтенд с API.** Сейчас дашборд показывает захардкоженные данные (`PATIENTS` в `dashboard.js`). Нужно заменить их на `fetch('/v1/patients', { headers: { Authorization: ... }})`.
-2. **Экран входа.** У бэкенда есть `/v1/auth/login`, но на фронте нет формы логина и хранения токена.
+1. ~~**Связать фронтенд с API.**~~ ✅ Частично готово: при активной сессии `dashboard.html` тянет пациентов из `/v1/patients`, а `labs.html`/`predict.html` считают риск на сервере и сохраняют показатели в карту (`/v1/patients/:id/assessments`). Без сессии — демо-режим на синтетике. Осталось довести живыми данными остальные виджеты дашборда (аналитика/биллинг уже частично на API).
+2. ~~**Экран входа.**~~ ✅ Готово: `login.html` + `/v1/auth/login`; access-токен хранится в памяти, refresh — в httpOnly-cookie (см. `api.js`).
 3. ~~**Сборка фронтенда.**~~ ✅ Готово: фронт переведён на **Vite** (Vanilla) — bundler, env-переменные (`VITE_API_BASE`), code-splitting по страницам, npm-зависимости вместо `vendor/`.
 4. **Развёртывание.** Бэкенд контейнеризован (`Dockerfile`, `docker-compose.yml`, `infra/k8s`), фронтенд можно отдавать через тот же Nginx/CDN.
 5. **CI.** Есть `.github/workflows/ci.yml` — убедитесь, что он гоняет `lint + typecheck + test` на каждый PR.

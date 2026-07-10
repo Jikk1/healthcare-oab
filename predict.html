@@ -41,12 +41,32 @@
     <aside class="or-panel" id="inputPanel">
       <h3>Профиль пациента</h3>
 
+      <!-- Демо-режим: данные считаются локально и НЕ сохраняются в БД. -->
+      <div class="demo-banner" id="demoBanner">
+        <span class="demo-ico" aria-hidden="true">⚠</span>
+        <span><b>Демо-режим:</b> расчёт идёт в браузере, данные <b>не сохраняются</b>. <a href="login.html?redirect=predict.html">Войдите</a>, чтобы записывать прогнозы в карту пациента.</span>
+      </div>
+
       <div class="or-field">
         <label>Источник вычислений <span class="u-t3-400" id="computeHint" aria-live="polite"></span></label>
         <div class="or-seg" id="computeSource">
           <button data-src="client" class="active">Браузер</button>
           <button data-src="server">Сервер API</button>
         </div>
+      </div>
+
+      <!-- Врачебный режим: привязать расчёт к пациенту и сохранить в карту (БД) -->
+      <div class="sect-top" id="doctorBox" hidden>
+        <label class="doctor-label">
+          Врачебный режим · сохранить в карту
+          <span class="doctor-hint" id="doctorHint"></span>
+        </label>
+        <select class="patient-select" id="patientSelect"></select>
+        <button class="btn btn-primary w-full" id="assessBtn" type="button">Сохранить прогноз в карту</button>
+        <div class="assess-result" id="assessResult" aria-live="polite"></div>
+      </div>
+      <div class="login-hint" id="doctorLoginHint" hidden>
+        Вы врач? <a class="u-cyan" href="login.html?redirect=predict.html">Войдите</a>, чтобы сохранять прогнозы в карту пациента.
       </div>
 
       <div class="or-field">

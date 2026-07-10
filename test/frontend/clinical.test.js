@@ -79,6 +79,24 @@ describe('mapBiomarkers', () => {
     expect(count).toBe(1);
   });
 
+  it('показатели без колонки уходят в labPanel и не теряются', () => {
+    const { body, count } = mapBiomarkers({
+      ldl: 3.1, // типизированная колонка
+      triglycerides: 2.4, // нет колонки → labPanel
+      crp: 5.2, // нет колонки → labPanel
+      familyCv: 2, // не анализ → не в labPanel
+    });
+    expect(body.ldl).toBe(3.1);
+    expect(body.labPanel).toEqual({ triglycerides: 2.4, crp: 5.2 });
+    expect('familyCv' in body.labPanel).toBe(false);
+    expect(count).toBe(3); // ldl + triglycerides + crp
+  });
+
+  it('без «бесколоночных» показателей labPanel отсутствует', () => {
+    const { body } = mapBiomarkers({ bmi: 27, ldl: 3 });
+    expect('labPanel' in body).toBe(false);
+  });
+
   it('BIOMARKER_MAP покрывает ожидаемые поля', () => {
     expect(Object.keys(BIOMARKER_MAP)).toEqual(
       expect.arrayContaining(['systolicBp', 'ldl', 'hba1c', 'bmi', 'egfr', 'packYears', 'activityPerWeek']),

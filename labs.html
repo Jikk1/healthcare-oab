@@ -41,6 +41,12 @@
     <aside class="or-panel" id="inputPanel">
       <h3>Мои показатели</h3>
 
+      <!-- Демо-режим: данные считаются локально и НЕ сохраняются в БД. -->
+      <div class="demo-banner" id="demoBanner">
+        <span class="demo-ico" aria-hidden="true">⚠</span>
+        <span><b>Демо-режим:</b> расчёт идёт в браузере, данные <b>не сохраняются</b>. <a href="login.html?redirect=labs.html">Войдите</a>, чтобы записывать показатели в карту пациента.</span>
+      </div>
+
       <div class="or-field">
         <label>Источник вычислений <span class="u-t3-400" id="computeHint" aria-live="polite"></span></label>
         <div class="or-seg" id="computeSource">

@@ -5,6 +5,7 @@ import './lib/telemetry.js';
 import { observeDynamicStyles } from './lib/dom.js';
 import { initI18n } from './lib/i18n.js';
 import { takeProfile } from './lib/handoff.js';
+import { escapeHtml } from './lib/format.js';
 import {
   COLORS, riskColor, syncSeg,
   renderKpis as kpiMarkup, renderCatFilter as catFilter,
@@ -249,6 +250,114 @@ import {
     renderTwinLine(r);
     renderExplain(r);
     renderIntervention();
+    // Любой пересчёт делает показанный результат «несохранённым» — врач видит,
+    // что текущие цифры ещё не записаны в карту пациента (БД).
+    markUnsaved();
+  }
+
+  /* ---------- Врачебный режим: сохранение прогноза в карту (БД) ----------
+     predict строит богатый HealthProfile; в карту сохраняем клинические
+     показатели, которые у сервера имеют смысл (BiomarkerBody). Всё введённое,
+     что не попало в типизированные поля, уходит в labPanel — ничего не теряем. */
+  let savedForProfile = false;
+  function setSaveState(html) {
+    const el = $('assessResult');
+    if (el) el.innerHTML = html;
+  }
+  // Помечает результат несохранённым (только когда врач в режиме сохранения).
+  function markUnsaved() {
+    const box = $('doctorBox');
+    if (!box || box.hidden) return;
+    savedForProfile = false;
+    setSaveState('<span data-sty="color:var(--amber)">● не сохранено — нажмите «Сохранить прогноз в карту»</span>');
+  }
+
+  function profileToBiomarkerBody(p) {
+    const labs = p.labs || {};
+    const life = p.lifestyle || {};
+    const body = { smokingStatus: life.smokingStatus || 'NEVER' };
+    let count = 0;
+    const put = (k, v, int) => {
+      if (Number.isFinite(v)) { body[k] = int ? Math.round(v) : v; count++; }
+    };
+    put('systolicBp', labs.systolicBp, true);
+    put('ldl', labs.ldl);
+    put('hdl', labs.hdl);
+    put('hba1c', labs.hba1c);
+    put('bmi', labs.bmi);
+    put('egfr', labs.egfr);
+    put('packYears', life.packYears);
+    put('activityPerWeek', life.activityPerWeek, true);
+    const fam = p.family && p.family.affected && p.family.affected.CARDIOVASCULAR;
+    if (Number.isFinite(fam)) body.familyHistoryCvd = fam > 0;
+    // Показатели без типизированной колонки сохраняем в сыром наборе.
+    const panel = {};
+    const crp = p.proteomic && p.proteomic.crp;
+    if (Number.isFinite(crp)) panel.crp = crp;
+    if (Object.keys(panel).length) { body.labPanel = panel; count += Object.keys(panel).length; }
+    return { body, count };
+  }
+
+  // Проверяет сессию; если врач авторизован — открывает блок и грузит пациентов.
+  // Возвращает true, если сессия активна (используется для авто-серверного режима).
+  async function enableDoctorMode() {
+    if (!api) return false;
+    const ok = await api.auth.refresh().catch(() => false);
+    const box = $('doctorBox');
+    const loginHint = $('doctorLoginHint');
+    const banner = $('demoBanner');
+    if (!ok) {
+      if (box) box.hidden = true;
+      if (loginHint) loginHint.hidden = false;
+      if (banner) banner.hidden = false; // нет сессии → демо-режим, данные не сохраняются
+      return false;
+    }
+    if (loginHint) loginHint.hidden = true;
+    if (banner) banner.hidden = true; // врач вошёл → сохранение в карту доступно
+    try {
+      const res = await api.patients.list({ pageSize: 100 });
+      const items = (res && res.items) || [];
+      const sel = $('patientSelect');
+      if (sel) sel.innerHTML = items.length
+        ? items.map((p) => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.fullName)} · ${escapeHtml(p.mrn)}</option>`).join('')
+        : '<option value="">— нет доступных карт —</option>';
+      const hint = $('doctorHint');
+      if (hint) hint.textContent = '● ' + items.length + ' карт';
+      if (box) box.hidden = false;
+      markUnsaved();
+    } catch {
+      if (box) box.hidden = true;
+    }
+    return true;
+  }
+
+  async function saveToPatient() {
+    const id = $('patientSelect').value;
+    if (!id) { setSaveState('<span data-sty="color:var(--amber)">Выберите пациента</span>'); return; }
+    const { body, count } = profileToBiomarkerBody(readProfile());
+    if (count === 0) { setSaveState('<span data-sty="color:var(--amber)">Нет показателей для сохранения</span>'); return; }
+    const btn = $('assessBtn');
+    btn.disabled = true;
+    const prev = btn.textContent;
+    btn.textContent = 'Сохранение…';
+    try {
+      const r = await api.patients.assess(id, body);
+      const a = (r && r.assessment) || {};
+      const recs = (r && r.recommendations) || [];
+      const lvlRu = { LOW: 'низкий', MEDIUM: 'умеренный', HIGH: 'высокий', CRITICAL: 'критический' };
+      savedForProfile = true;
+      setSaveState(
+        `<span data-sty="color:var(--mint)">✓ Сохранено в карту.</span> Риск: <b>${lvlRu[a.riskLevel] || a.riskLevel || '—'}</b>` +
+        (a.cvRisk != null ? ` · ССЗ ${Number(a.cvRisk).toFixed(1)}%` : '') +
+        (a.bioAge != null ? ` · биовозраст ${Math.round(a.bioAge)}` : '') +
+        (recs.length ? ` · рекомендаций: ${recs.length}` : ''),
+      );
+    } catch (e) {
+      setSaveState(`<span data-sty="color:var(--rose)">Ошибка: ${e && e.message ? e.message : 'не удалось сохранить'}</span>`);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = prev;
+    }
   }
 
   // Защита от гонок: учитываем только ответ на самый свежий запрос.
@@ -310,11 +419,15 @@ import {
         setComputeHint('· проверяю сессию…');
         const ok = await api.auth.refresh().catch(() => false);
         if (!ok) { setComputeHint('· <a href="login.html?redirect=predict.html" data-sty="color:var(--cyan)">войти</a> для серверного режима', true); return; }
+        enableDoctorMode(); // авторизованы → открыть сохранение в карту
       }
       state.source = src;
       syncSeg('computeSource', 'src', src);
       render();
     }));
+    // Сохранение прогноза в карту пациента.
+    const assessBtn = $('assessBtn');
+    if (assessBtn) assessBtn.addEventListener('click', saveToPatient);
     // Пресеты
     document.querySelectorAll('#presets button').forEach((b) => b.addEventListener('click', () => {
       document.querySelectorAll('#presets button').forEach((x) => x.classList.remove('active'));
@@ -342,6 +455,18 @@ import {
       setComputeHint('· профиль из анализов');
     } else {
       applyPreset('typical');
+    }
+
+    // Тихо проверяем сессию: если врач уже вошёл — включаем серверный режим
+    // (расчёт на сервере) и открываем сохранение прогноза в карту. Один запрос:
+    // enableDoctorMode сам делает refresh и возвращает статус сессии.
+    if (api) {
+      enableDoctorMode().then((ok) => {
+        if (!ok) return;
+        state.source = 'server';
+        syncSeg('computeSource', 'src', 'server');
+        render();
+      }).catch(() => {});
     }
   }
 

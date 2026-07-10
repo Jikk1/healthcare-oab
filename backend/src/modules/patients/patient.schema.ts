@@ -40,10 +40,24 @@ export const BiomarkerBody = z.object({
   hba1c: z.number().min(2).max(20).optional(),
   bmi: z.number().min(10).max(80).optional(),
   egfr: z.number().min(1).max(200).optional(),
+  // Complete blood count (ranges mirror prediction.schema)
+  hemoglobin: z.number().min(20).max(250).optional(),
+  hematocrit: z.number().min(10).max(70).optional(),
+  wbc: z.number().min(0).max(100).optional(),
+  platelets: z.number().min(1).max(2000).optional(),
+  neutrophils: z.number().min(0).max(50).optional(),
+  lymphocytes: z.number().min(0).max(50).optional(),
+  esr: z.number().min(0).max(150).optional(),
   smokingStatus: SmokingEnum.default('NEVER'),
   packYears: z.number().min(0).max(150).default(0),
   activityPerWeek: z.number().int().min(0).max(14).default(0),
   familyHistoryCvd: z.boolean().default(false),
   onStatins: z.boolean().default(false),
+  // Full raw panel as entered (field id -> numeric value); bounded to keep
+  // payloads sane — stored verbatim for the record, so no entered analyte is
+  // ever lost even when it has no dedicated typed column.
+  labPanel: z
+    .record(z.string().regex(/^[A-Za-z][A-Za-z0-9._-]{0,63}$/), z.number().finite())
+    .optional(),
 });
 export type BiomarkerBody = z.infer<typeof BiomarkerBody>;
