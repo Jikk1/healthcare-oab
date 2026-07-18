@@ -30,3 +30,8 @@ Thumbs.db
 # Prisma local sqlite, temp
 prisma/*.db
 tmp/
+
+# Playwright E2E artefacts
+test-results/
+playwright-report/
+.playwright/

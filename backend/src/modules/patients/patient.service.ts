@@ -71,10 +71,12 @@ export const patientService = {
   async update(actor: ActorContext, id: string, body: UpdatePatientBody): Promise<PatientDto> {
     const existing = await patientRepository.findById(actor.organizationId, id);
     if (!existing) throw NotFound('Patient not found');
-    const { encryptField } = await import('../../shared/crypto.js');
+    const { encryptField, blindIndex } = await import('../../shared/crypto.js');
     await patientRepository.update(actor.organizationId, id, {
       ...(body.firstName ? { firstNameEnc: encryptField(body.firstName) } : {}),
-      ...(body.lastName ? { lastNameEnc: encryptField(body.lastName) } : {}),
+      ...(body.lastName
+        ? { lastNameEnc: encryptField(body.lastName), lastNameIndex: blindIndex(body.lastName) }
+        : {}),
       ...(body.sex ? { sex: body.sex } : {}),
       ...(body.ageYears !== undefined ? { ageYears: body.ageYears } : {}),
     });

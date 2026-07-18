@@ -8,7 +8,7 @@
  * that already exist for the org).
  */
 import { Prisma, PrismaClient, type Sex, type SmokingStatus } from '@prisma/client';
-import { hashPassword, encryptField, encryptNullable } from '../src/shared/crypto.js';
+import { hashPassword, encryptField, encryptNullable, blindIndex } from '../src/shared/crypto.js';
 import { computeEntryHash } from '../src/modules/audit/audit.service.js';
 import {
   assessRisk,
@@ -177,6 +177,7 @@ async function main(): Promise<void> {
         mrn: p.mrn,
         firstNameEnc: encryptField(p.firstName),
         lastNameEnc: encryptField(p.lastName),
+        lastNameIndex: blindIndex(p.lastName),
         birthDateEnc: encryptNullable(birthDateFromAge(p.age)),
         sex: p.sex,
         ageYears: p.age,

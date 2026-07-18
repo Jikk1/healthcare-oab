@@ -1,6 +1,6 @@
 import type { Patient, Prisma } from '@prisma/client';
 import { prisma } from '../../shared/prisma.js';
-import { decryptField, encryptField, encryptNullable } from '../../shared/crypto.js';
+import { blindIndex, decryptField, encryptField, encryptNullable } from '../../shared/crypto.js';
 
 /**
  * Tenant-scoped data access for patients. EVERY method takes organizationId and
@@ -69,6 +69,7 @@ export const patientRepository = {
         mrn: input.mrn,
         firstNameEnc: encryptField(input.firstName),
         lastNameEnc: encryptField(input.lastName),
+        lastNameIndex: blindIndex(input.lastName),
         birthDateEnc: encryptNullable(input.birthDate),
         sex: input.sex,
         ageYears: input.ageYears,
@@ -94,10 +95,17 @@ export const patientRepository = {
       organizationId,
       isArchived: opts.archived,
       ...(opts.level ? { latestRiskLevel: opts.level } : {}),
-      // MRN is plaintext (non-identifying code) so it is searchable directly.
-      // Name search over encrypted columns is intentionally unsupported here;
-      // production uses a blind-index / deterministic HMAC column for that.
-      ...(opts.search ? { mrn: { contains: opts.search, mode: 'insensitive' } } : {}),
+      // MRN is plaintext (non-identifying code) — substring search.
+      // Last name is encrypted: matched exactly via its blind index
+      // (deterministic HMAC), substring search over PHI stays impossible.
+      ...(opts.search
+        ? {
+            OR: [
+              { mrn: { contains: opts.search, mode: 'insensitive' } },
+              { lastNameIndex: blindIndex(opts.search) },
+            ],
+          }
+        : {}),
     };
     const [rows, total] = await Promise.all([
       prisma.patient.findMany({
