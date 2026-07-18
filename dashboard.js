@@ -420,7 +420,7 @@ import { renderDonutStats, renderTrendLine } from './lib/donut.js';
       `<div data-sty="display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid var(--border)">
         <div>
           <div data-sty="font-weight:600">${escapeHtml(pl.plan)}</div>
-          <div data-sty="font-size:11px;color:var(--text-3)">${pl.monthlyCents ? money(pl.monthlyCents) + '/мес' : 'по договору'} · до ${limitTxt(pl.patientLimit)} пациентов</div>
+          <div data-sty="font-size:11px;color:var(--text-3)">${pl.monthlyCents ? money(pl.monthlyCents) + '/мес' : 'по договору'} · ${pl.patientLimit == null ? 'пациентов без ограничений' : `до ${pl.patientLimit} пациентов`}</div>
         </div>
         <button class="btn btn-outline btn-sm" data-action="changePlan" data-plan="${encodeURIComponent(pl.plan)}">Выбрать</button>
       </div>`).join('') || '<div data-sty="color:var(--text-3)">Нет тарифов</div>';

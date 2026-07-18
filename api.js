@@ -140,7 +140,17 @@
   }
 
   // Тихое обновление: refresh-токен берётся из httpOnly-cookie сервером.
-  async function tryRefresh() {
+  // Single-flight: refresh ротируемый (single-use), параллельные вызовы
+  // предъявят один и тот же токен — сервер расценит это как кражу и отзовёт
+  // всю семью сессий. Поэтому одновременные вызовы ждут один общий запрос.
+  let _refreshInflight = null;
+  function tryRefresh() {
+    if (_refreshInflight) return _refreshInflight;
+    _refreshInflight = doRefresh().finally(() => { _refreshInflight = null; });
+    return _refreshInflight;
+  }
+
+  async function doRefresh() {
     try {
       const data = await request('/v1/auth/refresh', {
         method: 'POST',
