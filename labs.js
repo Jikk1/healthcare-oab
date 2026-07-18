@@ -11,7 +11,7 @@ import './lib/telemetry.js';
 import { resolveRange, fieldStatus, mapBiomarkers } from './lib/clinical.js';
 import { escapeHtml } from './lib/format.js';
 import { observeDynamicStyles } from './lib/dom.js';
-import { initI18n } from './lib/i18n.js';
+import { initI18n, t, refreshI18n } from './lib/i18n.js';
 import { stashProfile } from './lib/handoff.js';
 import {
   COLORS, riskColor, probAt, syncSeg,
@@ -97,31 +97,35 @@ import {
   const statusOf = (field, value) => fieldStatus(refRange(field), value);
   function refText(field) {
     const [lo, hi] = refRange(field);
-    if (lo === 0 && hi === 0) return 'норма 0';
+    if (lo === 0 && hi === 0) return '0';
     if (field.higherBetter) return '≥ ' + lo;
     if (lo === 0) return '< ' + hi;
     return lo + '–' + hi;
   }
 
-  /* ---------- Построение полей ввода ---------- */
+  /* ---------- Построение полей ввода ----------
+     Названия полей/секций получают data-i18n-ключи (labsj.*) прямо в
+     генерируемой разметке — refreshI18n() после рендера применяет текущий
+     язык, а переключатель EN/RU подхватывает их как обычные узлы. */
   function buildGroups() {
     $('groups').innerHTML = GROUPS.map((g) => `
       <details class="or-accordion"${g.open ? ' open' : ''}>
-        <summary>${g.title}<span class="grp-count" id="cnt-${g.id}"></span></summary>
+        <summary><span data-i18n="labsj.sec.${g.id}">${g.title}</span><span class="grp-count" id="cnt-${g.id}"></span></summary>
         <div data-sty="padding:8px 0">
           ${g.fields.map((f) => `
             <div class="lab-field">
               <div class="lab-meta">
-                <div class="lab-name">${f.label}</div>
-                <div class="lab-ref">${f.unit ? f.unit + ' · ' : ''}норма ${refText(f)}</div>
+                <div class="lab-name" data-i18n="labsj.f.${f.id}">${f.label}</div>
+                <div class="lab-ref">${f.unit ? f.unit + ' · ' : ''}<span data-i18n="labsj.norm">норма</span> ${refText(f)}</div>
               </div>
               <div class="lab-input" id="wrap-${f.id}">
-                <input type="number" id="${f.id}" step="${f.step}" inputmode="decimal" placeholder="—" aria-label="${f.label}" />
+                <input type="number" id="${f.id}" step="${f.step}" inputmode="decimal" placeholder="—" aria-label="${f.label}" data-i18n-attr="aria-label:labsj.f.${f.id}" />
                 ${f.unit ? `<span class="lab-unit">${f.unit}</span>` : ''}
               </div>
             </div>`).join('')}
         </div>
       </details>`).join('');
+    refreshI18n();
   }
 
   /* ---------- Чтение значений ---------- */
@@ -181,25 +185,25 @@ import {
         const [lo, hi] = refRange(f);
         const dir = v < lo ? '↓' : '↑';
         const col = st === 'bad' ? COLORS.rose : COLORS.amber;
-        out.push(`<span class="flag" data-sty="color:${col};border-color:${col}55;background:${col}11">${dir} ${f.label}: ${v}${f.unit ? ' ' + f.unit : ''}</span>`);
+        out.push(`<span class="flag" data-sty="color:${col};border-color:${col}55;background:${col}11">${dir} ${t('labsj.f.' + f.id, f.label)}: ${v}${f.unit ? ' ' + f.unit : ''}</span>`);
       }
     }
     const filled = FIELDS.filter((f) => fieldValue(f) !== undefined).length;
     if (filled === 0) { $('flags').innerHTML = ''; return; }
     $('flags').innerHTML = out.length
       ? out.join('')
-      : `<span class="flag flag-ok">✓ Все введённые показатели (${filled}) в пределах нормы</span>`;
+      : `<span class="flag flag-ok">✓ ${t('labsj.flagsOkA', 'Все введённые показатели')} (${filled}) ${t('labsj.flagsOkB', 'в пределах нормы')}</span>`;
   }
 
   /* ---------- KPI ---------- */
   function renderKpis(r) {
     const le = r.lifeExpectancy;
     const kpis = [
-      { v: r.healthIndex, l: 'Индекс здоровья', hint: `уверенность ${Math.round(r.confidence * 100)}%`, color: riskColor(100 - r.healthIndex) },
-      { v: le.biologicalAge, l: 'Биологический возраст', hint: `паспортный ${r.ageYears}`, color: le.biologicalAge > r.ageYears ? COLORS.rose : COLORS.mint },
-      { v: le.lifeExpectancy, l: 'Ожид. продолж. жизни', hint: `здоровой ${le.healthspan}`, color: COLORS.cyan },
-      { v: '+' + le.yearsOfLifeLostModifiable, l: 'Возвратимые годы', hint: 'при коррекции факторов', color: COLORS.mint },
-      { v: r.predictions.length, l: 'Болезней оценено', hint: `${r.modalitiesPresent.length} модальностей данных`, color: COLORS.violet },
+      { v: r.healthIndex, l: t('orj.kpi.health', 'Индекс здоровья'), hint: `${t('orj.kpi.confidence', 'уверенность')} ${Math.round(r.confidence * 100)}%`, color: riskColor(100 - r.healthIndex) },
+      { v: le.biologicalAge, l: t('orj.kpi.bioAge', 'Биологический возраст'), hint: `${t('orj.kpi.chrono', 'паспортный')} ${r.ageYears}`, color: le.biologicalAge > r.ageYears ? COLORS.rose : COLORS.mint },
+      { v: le.lifeExpectancy, l: t('orj.kpi.le', 'Ожид. продолж. жизни'), hint: `${t('orj.kpi.healthspan', 'здоровой')} ${le.healthspan}`, color: COLORS.cyan },
+      { v: '+' + le.yearsOfLifeLostModifiable, l: t('orj.kpi.regain', 'Возвратимые годы'), hint: t('orj.kpi.regainHint', 'при коррекции факторов'), color: COLORS.mint },
+      { v: r.predictions.length, l: t('orj.kpi.diseases', 'Болезней оценено'), hint: `${r.modalitiesPresent.length} ${t('labsj.kpi.modalities', 'модальностей данных')}`, color: COLORS.violet },
     ];
     kpiMarkup($('kpis'), kpis);
   }
@@ -213,7 +217,7 @@ import {
   function renderDiseases(r) {
     diseaseList($('diseaseList'), r, {
       horizon: state.horizon, category: state.category, categoryLabels: CATEGORY_LABELS,
-      horizonLabelEl: $('horizonLabel'), ciLabel: 'ДИ',
+      horizonLabelEl: $('horizonLabel'), ciLabel: t('orj.ci', 'ДИ'),
       badgeExtra: ';font-size:10px;padding:1px 7px;border-radius:999px',
     });
   }
@@ -225,19 +229,19 @@ import {
     $('driverDisease').textContent = '· ' + top.name;
     const causal = r.causal[top.id];
     if (!causal || !causal.drivers.length) {
-      $('drivers').innerHTML = '<div class="cap" data-sty="margin:0">Недостаточно данных для разбора факторов. Заполните больше показателей.</div>';
+      $('drivers').innerHTML = `<div class="cap" data-sty="margin:0">${t('labsj.driversEmpty', 'Недостаточно данных для разбора факторов. Заполните больше показателей.')}</div>`;
       return;
     }
     const rows = causal.drivers.slice(0, 6).map((d) => `
       <div class="driver-row">
         <div>
           <div class="d-nm">${d.label}</div>
-          <div class="d-sub">${d.causal ? 'модифицируемый' : 'немодифицируемый'} · вклад ${Math.round(d.contribution * 100)}%</div>
+          <div class="d-sub">${d.causal ? t('orj.modifiable', 'модифицируемый') : t('orj.nonModifiable', 'немодифицируемый')} · ${t('labsj.contribution', 'вклад')} ${Math.round(d.contribution * 100)}%</div>
         </div>
         <div class="d-val" data-sty="color:${d.causal ? COLORS.mint : COLORS.violet}">${d.causal ? '−' + d.counterfactualReductionPct + '%' : '—'}</div>
       </div>`).join('');
     $('drivers').innerHTML = rows +
-      `<div class="or-note">Модифицируемая доля риска: <b data-sty="color:${COLORS.mint}">${causal.modifiableSharePct}%</b>. Колонка справа — оценка снижения риска при нормализации фактора.</div>`;
+      `<div class="or-note">${t('orj.modShare', 'Модифицируемая доля риска:')} <b data-sty="color:${COLORS.mint}">${causal.modifiableSharePct}%</b>. ${t('labsj.driversNote', 'Колонка справа — оценка снижения риска при нормализации фактора.')}</div>`;
   }
 
   /* ---------- Радар цифрового двойника ---------- */
@@ -268,16 +272,18 @@ import {
     const mySeq = ++seq;
 
     if (state.source === 'server' && api) {
-      setComputeHint('· вычисляю на сервере…');
+      setComputeHint('· ' + t('orj.hint.computing', 'вычисляю на сервере…'));
       try {
         const r = await api.predict.run(profile);
         if (mySeq !== seq) return;
         applyResult(r);
-        setComputeHint('· сервер');
+        setComputeHint('· ' + t('orj.hint.server', 'сервер'));
         return;
       } catch (err) {
         if (mySeq !== seq) return;
-        setComputeHint((err && err.code) === 'NETWORK' ? '· сервер недоступен → локальный расчёт' : '· ошибка API → локальный расчёт');
+        setComputeHint('· ' + ((err && err.code) === 'NETWORK'
+          ? t('orj.hint.serverDown', 'сервер недоступен → локальный расчёт')
+          : t('orj.hint.apiError', 'ошибка API → локальный расчёт')));
       }
     }
     applyResult(runOmniRisk(profile));
@@ -315,7 +321,7 @@ import {
         for (const [id, v] of Object.entries(data.values || {})) { if (FIELD_BY_ID.has(id) && $(id)) $(id).value = v; }
         compute();
       } catch {
-        setComputeHint('· не удалось прочитать файл');
+        setComputeHint('· ' + t('labsj.fileError', 'не удалось прочитать файл'));
       }
     };
     reader.readAsText(file);
@@ -363,8 +369,8 @@ import {
       const sel = $('patientSelect');
       sel.innerHTML = items.length
         ? items.map((p) => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.fullName)} · ${escapeHtml(p.mrn)}</option>`).join('')
-        : '<option value="">— нет доступных карт —</option>';
-      $('doctorHint').textContent = '● ' + items.length + ' карт';
+        : `<option value="">${t('orj.noCharts', '— нет доступных карт —')}</option>`;
+      $('doctorHint').textContent = '● ' + items.length + ' ' + t('orj.chartsCount', 'карт');
       if (box) box.hidden = false;
     } catch {
       if (box) box.hidden = true;
@@ -374,25 +380,26 @@ import {
   async function saveToPatient() {
     const id = $('patientSelect').value;
     const out = $('assessResult');
-    if (!id) { out.innerHTML = '<span data-sty="color:var(--amber)">Выберите пациента</span>'; return; }
+    if (!id) { out.innerHTML = `<span data-sty="color:var(--amber)">${t('orj.pickPatient', 'Выберите пациента')}</span>`; return; }
     const { body, count } = buildBiomarkerBody();
-    if (count === 0) { out.innerHTML = '<span data-sty="color:var(--amber)">Введите хотя бы один показатель (АД, ЛПНП, HbA1c, ИМТ…)</span>'; return; }
+    if (count === 0) { out.innerHTML = `<span data-sty="color:var(--amber)">${t('labsj.needOneValue', 'Введите хотя бы один показатель (АД, ЛПНП, HbA1c, ИМТ…)')}</span>`; return; }
     const btn = $('assessBtn');
     btn.disabled = true;
     const prev = btn.textContent;
-    btn.textContent = 'Сохранение…';
+    btn.textContent = t('orj.saving', 'Сохранение…');
     try {
       const r = await api.patients.assess(id, body);
       const a = (r && r.assessment) || {};
       const recs = (r && r.recommendations) || [];
       const lvlRu = { LOW: 'низкий', MEDIUM: 'умеренный', HIGH: 'высокий', CRITICAL: 'критический' };
+      const lvlText = (lvl) => t('orj.levelLc.' + lvl, lvlRu[lvl] || lvl || '—');
       out.innerHTML =
-        `<span data-sty="color:var(--mint)">✓ Сохранено.</span> Риск: <b>${lvlRu[a.riskLevel] || a.riskLevel || '—'}</b>` +
-        (a.cvRisk != null ? ` · ССЗ ${Number(a.cvRisk).toFixed(1)}%` : '') +
-        (a.bioAge != null ? ` · биовозраст ${Math.round(a.bioAge)}` : '') +
-        (recs.length ? ` · рекомендаций: ${recs.length}` : '');
+        `<span data-sty="color:var(--mint)">✓ ${t('orj.saved', 'Сохранено.')}</span> ${t('orj.risk', 'Риск')}: <b>${lvlText(a.riskLevel)}</b>` +
+        (a.cvRisk != null ? ` · ${t('orj.cv', 'ССЗ')} ${Number(a.cvRisk).toFixed(1)}%` : '') +
+        (a.bioAge != null ? ` · ${t('orj.bioAgeLc', 'биовозраст')} ${Math.round(a.bioAge)}` : '') +
+        (recs.length ? ` · ${t('orj.recs', 'рекомендаций')}: ${recs.length}` : '');
     } catch (e) {
-      out.innerHTML = `<span data-sty="color:var(--rose)">Ошибка: ${e && e.message ? e.message : 'не удалось сохранить'}</span>`;
+      out.innerHTML = `<span data-sty="color:var(--rose)">${t('orj.error', 'Ошибка')}: ${e && e.message ? e.message : t('orj.saveFailed', 'не удалось сохранить')}</span>`;
     } finally {
       btn.disabled = false;
       btn.textContent = prev;
@@ -402,8 +409,14 @@ import {
   /* ---------- Инициализация ---------- */
   function init() {
     observeDynamicStyles(); // применяет data-sty к innerHTML-рендерам (CSP: без style-src 'unsafe-inline')
-    initI18n(); // переключатель RU/EN (переведены шапка и навигация; поля/результаты — RU)
+    initI18n(); // переключатель RU/EN (шапка/навигация — data-i18n; JS-рендеры — t())
     buildGroups();
+    // Переключение языка: перерисовать динамические результаты из состояния
+    // (без пересчёта и без сетевых запросов — данные не меняются).
+    document.addEventListener('hc:langchange', () => {
+      renderFlags();
+      if (last) applyResult(last);
+    });
 
     document.querySelectorAll('#groups input, #age').forEach((el) => el.addEventListener('input', scheduleCompute));
     $('age').addEventListener('input', scheduleCompute);
@@ -414,10 +427,10 @@ import {
     document.querySelectorAll('#computeSource button').forEach((b) => b.addEventListener('click', async () => {
       const src = b.dataset.src;
       if (src === 'server') {
-        if (!api) { setComputeHint('· API недоступен'); return; }
-        setComputeHint('· проверяю сессию…');
+        if (!api) { setComputeHint('· ' + t('orj.hint.apiMissing', 'API недоступен')); return; }
+        setComputeHint('· ' + t('orj.hint.session', 'проверяю сессию…'));
         const ok = await api.auth.refresh().catch(() => false);
-        if (!ok) { setComputeHint('· <a href="login.html?redirect=labs.html" data-sty="color:var(--cyan)">войти</a> для серверного режима', true); return; }
+        if (!ok) { setComputeHint(`· <a href="login.html?redirect=labs.html" data-sty="color:var(--cyan)">${t('orj.hint.login', 'войти')}</a> ${t('orj.hint.forServer', 'для серверного режима')}`, true); return; }
         enableDoctorMode(); // авторизовались → открыть сохранение в карту
       }
       state.source = src;

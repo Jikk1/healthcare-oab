@@ -3,7 +3,7 @@
    ============================================================ */
 import './lib/telemetry.js';
 import { observeDynamicStyles } from './lib/dom.js';
-import { initI18n } from './lib/i18n.js';
+import { initI18n, t } from './lib/i18n.js';
 import { takeProfile } from './lib/handoff.js';
 import { escapeHtml } from './lib/format.js';
 import {
@@ -120,12 +120,12 @@ import {
   function renderKpis(r) {
     const le = r.lifeExpectancy;
     const kpis = [
-      { v: r.healthIndex, l: 'Индекс здоровья', hint: `уверенность ${Math.round(r.confidence * 100)}%`, color: riskColor(100 - r.healthIndex) },
-      { v: le.biologicalAge, l: 'Биологический возраст', hint: `паспортный ${r.ageYears}`, color: le.biologicalAge > r.ageYears ? COLORS.rose : COLORS.mint },
-      { v: le.lifeExpectancy, l: 'Ожид. продолж. жизни', hint: `здоровой ${le.healthspan}`, color: COLORS.cyan },
-      { v: '+' + le.yearsOfLifeLostModifiable, l: 'Возвратимые годы', hint: 'при коррекции факторов', color: COLORS.mint },
-      { v: le.disabilityRisk10y + '%', l: 'Риск инвалидизации 10л', hint: '', color: riskColor(le.disabilityRisk10y) },
-      { v: r.predictions.length, l: 'Болезней оценено', hint: `${r.modalitiesPresent.length} модальностей`, color: COLORS.violet },
+      { v: r.healthIndex, l: t('orj.kpi.health', 'Индекс здоровья'), hint: `${t('orj.kpi.confidence', 'уверенность')} ${Math.round(r.confidence * 100)}%`, color: riskColor(100 - r.healthIndex) },
+      { v: le.biologicalAge, l: t('orj.kpi.bioAge', 'Биологический возраст'), hint: `${t('orj.kpi.chrono', 'паспортный')} ${r.ageYears}`, color: le.biologicalAge > r.ageYears ? COLORS.rose : COLORS.mint },
+      { v: le.lifeExpectancy, l: t('orj.kpi.le', 'Ожид. продолж. жизни'), hint: `${t('orj.kpi.healthspan', 'здоровой')} ${le.healthspan}`, color: COLORS.cyan },
+      { v: '+' + le.yearsOfLifeLostModifiable, l: t('orj.kpi.regain', 'Возвратимые годы'), hint: t('orj.kpi.regainHint', 'при коррекции факторов'), color: COLORS.mint },
+      { v: le.disabilityRisk10y + '%', l: t('predj.kpi.disability', 'Риск инвалидизации 10л'), hint: '', color: riskColor(le.disabilityRisk10y) },
+      { v: r.predictions.length, l: t('orj.kpi.diseases', 'Болезней оценено'), hint: `${r.modalitiesPresent.length} ${t('predj.kpi.modalities', 'модальностей')}`, color: COLORS.violet },
     ];
     kpiMarkup($('kpis'), kpis);
   }
@@ -151,10 +151,10 @@ import {
   function renderTwinLine(r) {
     const base = r.digitalTwin.baselineTrajectory, opt = r.digitalTwin.optimizedTrajectory;
     const data = {
-      labels: base.map((p) => '+' + p.yearOffset + 'л'),
+      labels: base.map((p) => '+' + p.yearOffset + t('predj.chart.yearsSuffix', 'л')),
       datasets: [
-        { label: 'Без вмешательства', data: base.map((p) => p.overall), borderColor: COLORS.rose, backgroundColor: 'rgba(255,94,126,0.12)', fill: true, tension: 0.35 },
-        { label: 'При соблюдении', data: opt.map((p) => p.overall), borderColor: COLORS.mint, backgroundColor: 'rgba(74,255,170,0.12)', fill: true, tension: 0.35 },
+        { label: t('predj.chart.baseline', 'Без вмешательства'), data: base.map((p) => p.overall), borderColor: COLORS.rose, backgroundColor: 'rgba(255,94,126,0.12)', fill: true, tension: 0.35 },
+        { label: t('predj.chart.optimized', 'При соблюдении'), data: opt.map((p) => p.overall), borderColor: COLORS.mint, backgroundColor: 'rgba(74,255,170,0.12)', fill: true, tension: 0.35 },
       ],
     };
     if (charts.line) { charts.line.data = data; charts.line.update('none'); return; }
@@ -171,14 +171,14 @@ import {
     state.shapDisease = dis.id;
     $('shapDisease').textContent = '· ' + dis.name;
     const exp = r.explanations[dis.id];
-    if (!exp) { $('shapList').innerHTML = '<div class="cap">Нет данных объяснимости для этой болезни (вне топ-12). Кликните на болезнь из топа.</div>'; $('attList').innerHTML = ''; $('causalChain').textContent = ''; return; }
+    if (!exp) { $('shapList').innerHTML = `<div class="cap">${t('predj.shapEmpty', 'Нет данных объяснимости для этой болезни (вне топ-12). Кликните на болезнь из топа.')}</div>`; $('attList').innerHTML = ''; $('causalChain').textContent = ''; return; }
 
     const top = exp.shap.slice(0, 8);
     const max = Math.max(...top.map((s) => Math.abs(s.value)), 0.01);
     $('shapList').innerHTML = top.map((s) => {
       const pos = s.value >= 0, w = Math.abs(s.value) / max * 50, col = pos ? COLORS.rose : COLORS.mint;
       return `<div class="or-shaprow">
-        <div title="${s.feature}">${s.feature}${s.modifiable ? '' : ' <span data-sty="color:var(--text-3);font-size:10px">(немод.)</span>'}</div>
+        <div title="${s.feature}">${s.feature}${s.modifiable ? '' : ` <span data-sty="color:var(--text-3);font-size:10px">(${t('predj.nonModAbbr', 'немод.')})</span>`}</div>
         <div class="track"><div class="fill" data-sty="${pos ? `left:50%;width:${w}%` : `right:50%;width:${w}%`};background:${col}"></div></div>
         <div class="val" data-sty="color:${col}">${pos ? '+' : ''}${s.value.toFixed(2)}</div>
       </div>`;
@@ -194,8 +194,8 @@ import {
     const causal = r.causal[dis.id];
     if (causal) {
       const topDrivers = causal.drivers.filter((d) => d.causal).slice(0, 3).map((d) => d.label).join(' → ');
-      $('causalChain').innerHTML = `<b>Причинная цепочка:</b> ${topDrivers || 'основные факторы'} → ${dis.name}. ` +
-        `Модифицируемая доля риска: <b data-sty="color:${COLORS.mint}">${causal.modifiableSharePct}%</b>.`;
+      $('causalChain').innerHTML = `<b>${t('predj.causalChain', 'Причинная цепочка:')}</b> ${topDrivers || t('predj.mainFactors', 'основные факторы')} → ${dis.name}. ` +
+        `${t('orj.modShare', 'Модифицируемая доля риска:')} <b data-sty="color:${COLORS.mint}">${causal.modifiableSharePct}%</b>.`;
     }
   }
 
@@ -212,7 +212,7 @@ import {
   }
   function renderIntervention() {
     if (state.interventions.size === 0) {
-      $('interventionResult').innerHTML = '<div class="cap">Выберите одно или несколько вмешательств выше, чтобы увидеть прогнозируемый эффект.</div>';
+      $('interventionResult').innerHTML = `<div class="cap">${t('predj.ivEmpty', 'Выберите одно или несколько вмешательств выше, чтобы увидеть прогнозируемый эффект.')}</div>`;
       return;
     }
     const delta = simulateIntervention(readProfile(), buildOverrides());
@@ -220,14 +220,14 @@ import {
     const sign = (v) => (v >= 0 ? '+' : '') + v;
     $('interventionResult').innerHTML = `
       <div class="or-kpis" data-sty="margin-bottom:16px">
-        <div class="or-kpi"><div class="v" data-sty="color:${delta.healthIndexDelta >= 0 ? COLORS.mint : COLORS.rose}">${sign(delta.healthIndexDelta)}</div><div class="l">Индекс здоровья</div></div>
-        <div class="or-kpi"><div class="v" data-sty="color:${COLORS.cyan}">${sign(delta.lifeExpectancyDelta)} л</div><div class="l">Ожид. продолж. жизни</div></div>
+        <div class="or-kpi"><div class="v" data-sty="color:${delta.healthIndexDelta >= 0 ? COLORS.mint : COLORS.rose}">${sign(delta.healthIndexDelta)}</div><div class="l">${t('orj.kpi.health', 'Индекс здоровья')}</div></div>
+        <div class="or-kpi"><div class="v" data-sty="color:${COLORS.cyan}">${sign(delta.lifeExpectancyDelta)} ${t('predj.chart.yearsSuffix', 'л')}</div><div class="l">${t('orj.kpi.le', 'Ожид. продолж. жизни')}</div></div>
       </div>
       ${top.map((d) => `<div class="or-disease">
-        <div><div class="nm">${d.name}</div><div class="meta">10-летний риск</div></div>
+        <div><div class="nm">${d.name}</div><div class="meta">${t('predj.risk10y', '10-летний риск')}</div></div>
         <div class="or-prob"><span data-sty="color:${COLORS.rose}">${d.before}%</span> <span data-sty="color:var(--text-3)">→</span> <span data-sty="color:${COLORS.mint}">${d.after}%</span></div>
         <div class="or-bar"><i data-sty="width:${Math.min(100, d.reductionPct)}%;background:${COLORS.mint}"></i></div>
-      </div>`).join('') || '<div class="cap">Заметного эффекта на основные риски нет.</div>'}`;
+      </div>`).join('') || `<div class="cap">${t('predj.ivNoEffect', 'Заметного эффекта на основные риски нет.')}</div>`}`;
   }
 
   /* ---------- Подпись источника вычислений ---------- */
@@ -269,7 +269,7 @@ import {
     const box = $('doctorBox');
     if (!box || box.hidden) return;
     savedForProfile = false;
-    setSaveState('<span data-sty="color:var(--amber)">● не сохранено — нажмите «Сохранить прогноз в карту»</span>');
+    setSaveState(`<span data-sty="color:var(--amber)">● ${t('predj.unsaved', 'не сохранено — нажмите «Сохранить прогноз в карту»')}</span>`);
   }
 
   function profileToBiomarkerBody(p) {
@@ -320,9 +320,9 @@ import {
       const sel = $('patientSelect');
       if (sel) sel.innerHTML = items.length
         ? items.map((p) => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.fullName)} · ${escapeHtml(p.mrn)}</option>`).join('')
-        : '<option value="">— нет доступных карт —</option>';
+        : `<option value="">${t('orj.noCharts', '— нет доступных карт —')}</option>`;
       const hint = $('doctorHint');
-      if (hint) hint.textContent = '● ' + items.length + ' карт';
+      if (hint) hint.textContent = '● ' + items.length + ' ' + t('orj.chartsCount', 'карт');
       if (box) box.hidden = false;
       markUnsaved();
     } catch {
@@ -333,27 +333,28 @@ import {
 
   async function saveToPatient() {
     const id = $('patientSelect').value;
-    if (!id) { setSaveState('<span data-sty="color:var(--amber)">Выберите пациента</span>'); return; }
+    if (!id) { setSaveState(`<span data-sty="color:var(--amber)">${t('orj.pickPatient', 'Выберите пациента')}</span>`); return; }
     const { body, count } = profileToBiomarkerBody(readProfile());
-    if (count === 0) { setSaveState('<span data-sty="color:var(--amber)">Нет показателей для сохранения</span>'); return; }
+    if (count === 0) { setSaveState(`<span data-sty="color:var(--amber)">${t('predj.nothingToSave', 'Нет показателей для сохранения')}</span>`); return; }
     const btn = $('assessBtn');
     btn.disabled = true;
     const prev = btn.textContent;
-    btn.textContent = 'Сохранение…';
+    btn.textContent = t('orj.saving', 'Сохранение…');
     try {
       const r = await api.patients.assess(id, body);
       const a = (r && r.assessment) || {};
       const recs = (r && r.recommendations) || [];
       const lvlRu = { LOW: 'низкий', MEDIUM: 'умеренный', HIGH: 'высокий', CRITICAL: 'критический' };
+      const lvlText = (lvl) => t('orj.levelLc.' + lvl, lvlRu[lvl] || lvl || '—');
       savedForProfile = true;
       setSaveState(
-        `<span data-sty="color:var(--mint)">✓ Сохранено в карту.</span> Риск: <b>${lvlRu[a.riskLevel] || a.riskLevel || '—'}</b>` +
-        (a.cvRisk != null ? ` · ССЗ ${Number(a.cvRisk).toFixed(1)}%` : '') +
-        (a.bioAge != null ? ` · биовозраст ${Math.round(a.bioAge)}` : '') +
-        (recs.length ? ` · рекомендаций: ${recs.length}` : ''),
+        `<span data-sty="color:var(--mint)">✓ ${t('predj.savedToChart', 'Сохранено в карту.')}</span> ${t('orj.risk', 'Риск')}: <b>${lvlText(a.riskLevel)}</b>` +
+        (a.cvRisk != null ? ` · ${t('orj.cv', 'ССЗ')} ${Number(a.cvRisk).toFixed(1)}%` : '') +
+        (a.bioAge != null ? ` · ${t('orj.bioAgeLc', 'биовозраст')} ${Math.round(a.bioAge)}` : '') +
+        (recs.length ? ` · ${t('orj.recs', 'рекомендаций')}: ${recs.length}` : ''),
       );
     } catch (e) {
-      setSaveState(`<span data-sty="color:var(--rose)">Ошибка: ${e && e.message ? e.message : 'не удалось сохранить'}</span>`);
+      setSaveState(`<span data-sty="color:var(--rose)">${t('orj.error', 'Ошибка')}: ${e && e.message ? e.message : t('orj.saveFailed', 'не удалось сохранить')}</span>`);
     } finally {
       btn.disabled = false;
       btn.textContent = prev;
@@ -369,18 +370,20 @@ import {
     const seq = ++renderSeq;
 
     if (state.source === 'server' && api) {
-      setComputeHint('· вычисляю на сервере…');
+      setComputeHint('· ' + t('orj.hint.computing', 'вычисляю на сервере…'));
       try {
         const r = await api.predict.run(profile);
         if (seq !== renderSeq) return; // пришёл более новый запрос — игнорируем
         applyResult(r);
-        setComputeHint('· сервер');
+        setComputeHint('· ' + t('orj.hint.server', 'сервер'));
         return;
       } catch (err) {
         if (seq !== renderSeq) return;
         // Откат на локальный движок, чтобы UI не «залипал».
         const code = err && err.code;
-        setComputeHint(code === 'NETWORK' ? '· сервер недоступен → локальный расчёт' : '· ошибка API → локальный расчёт');
+        setComputeHint('· ' + (code === 'NETWORK'
+          ? t('orj.hint.serverDown', 'сервер недоступен → локальный расчёт')
+          : t('orj.hint.apiError', 'ошибка API → локальный расчёт')));
       }
     }
 
@@ -402,8 +405,10 @@ import {
   /* ---------- События ---------- */
   function init() {
     observeDynamicStyles(); // применяет data-sty к innerHTML-рендерам (CSP: без style-src 'unsafe-inline')
-    initI18n(); // переключатель RU/EN (переведены шапка и навигация; поля/результаты — RU)
+    initI18n(); // переключатель RU/EN (шапка/навигация — data-i18n; JS-рендеры — t())
     syncLabels();
+    // Переключение языка: перерисовать результаты из состояния (без пересчёта).
+    document.addEventListener('hc:langchange', () => { if (window._last) applyResult(window._last); });
     // Слайдеры
     document.querySelectorAll('#inputPanel input[type=range]').forEach((el) => {
       el.addEventListener('input', () => { syncLabels(); render(); });
@@ -415,10 +420,10 @@ import {
     document.querySelectorAll('#computeSource button').forEach((b) => b.addEventListener('click', async () => {
       const src = b.dataset.src;
       if (src === 'server') {
-        if (!api) { setComputeHint('· API недоступен'); return; }
-        setComputeHint('· проверяю сессию…');
+        if (!api) { setComputeHint('· ' + t('orj.hint.apiMissing', 'API недоступен')); return; }
+        setComputeHint('· ' + t('orj.hint.session', 'проверяю сессию…'));
         const ok = await api.auth.refresh().catch(() => false);
-        if (!ok) { setComputeHint('· <a href="login.html?redirect=predict.html" data-sty="color:var(--cyan)">войти</a> для серверного режима', true); return; }
+        if (!ok) { setComputeHint(`· <a href="login.html?redirect=predict.html" data-sty="color:var(--cyan)">${t('orj.hint.login', 'войти')}</a> ${t('orj.hint.forServer', 'для серверного режима')}`, true); return; }
         enableDoctorMode(); // авторизованы → открыть сохранение в карту
       }
       state.source = src;
@@ -452,7 +457,7 @@ import {
       document.querySelectorAll('#presets button').forEach((x) => x.classList.remove('active'));
       seedFromProfile(handoff);
       applyResult(runOmniRisk(handoff));
-      setComputeHint('· профиль из анализов');
+      setComputeHint('· ' + t('predj.fromLabs', 'профиль из анализов'));
     } else {
       applyPreset('typical');
     }
