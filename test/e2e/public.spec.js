@@ -7,11 +7,14 @@ test.describe('public pages', () => {
     await expect(page).toHaveTitle(/HealthCareOAB\+/);
     await expect(page.locator('h1')).toContainText('Прогностическая медицина');
 
-    await page.locator('[data-lang-toggle]').first().click();
+    // dispatchEvent: шапка лендинга анимируется при входе (кнопка на старте
+    // вне вьюпорта) — тест проверяет подмену словаря, а не кликабельность,
+    // клик доставляем прямо в делегированный слушатель i18n.
+    await page.locator('[data-lang-toggle]').first().dispatchEvent('click');
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
     await expect(page.locator('h1')).toContainText('Predictive medicine');
 
-    await page.locator('[data-lang-toggle]').first().click();
+    await page.locator('[data-lang-toggle]').first().dispatchEvent('click');
     await expect(page.locator('html')).toHaveAttribute('lang', 'ru');
   });
 
