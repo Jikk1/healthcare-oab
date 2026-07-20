@@ -42,6 +42,9 @@ const EnvSchema = z.object({
 
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(300),
   RATE_LIMIT_WINDOW: z.coerce.number().int().positive().default(60_000),
+  // Строгий лимит auth-эндпоинтов (login/register), запросов в минуту.
+  // Дефолт — прод-значение; в dev/E2E поднимается через окружение.
+  AUTH_STRICT_RATE_MAX: z.coerce.number().int().positive().default(10),
 
   OTEL_ENABLED: z.coerce.boolean().default(false),
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().url().default('http://localhost:4318'),

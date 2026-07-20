@@ -6,32 +6,45 @@ import { setLocale } from '../../lib/i18n.js';
 
 // Страницы, где размечен data-i18n (dashboard пока RU — намеренно).
 const FILES = ['index', 'cox', 'cox-demo', 'predict', 'labs', 'login'].map((f) => `${f}.html`);
+// JS с t()-строками и data-i18n в генерируемой разметке (ADR-0008).
+const JS_FILES = ['labs.js', 'predict.js', 'lib/omni-render.js'];
 
 const read = (rel) => readFileSync(fileURLToPath(new URL('../../' + rel, import.meta.url)), 'utf8');
 
+/** Ключи из разметки/шаблонов. Динамические (`labsj.f.${f.id}`, `'orj.level.' + lvl`)
+ *  сводятся к префиксу с точкой на конце. */
+function extractKeys(src) {
+  const statics = [];
+  const prefixes = [];
+  const push = (raw) => {
+    const cut = raw.indexOf('${');
+    const key = cut === -1 ? raw : raw.slice(0, cut);
+    if (key !== raw || key.endsWith('.')) { if (key) prefixes.push(key); } else statics.push(key);
+  };
+  for (const m of src.matchAll(/data-i18n(?:-html)?="([^"]+)"/g)) push(m[1]);
+  for (const m of src.matchAll(/data-i18n-attr="([^"]+)"/g)) {
+    for (const pair of m[1].split(';')) { const k = pair.split(':')[1]?.trim(); if (k) push(k); }
+  }
+  for (const m of src.matchAll(/\bt\(\s*'([^']+)'/g)) push(m[1]);
+  return { statics, prefixes };
+}
+
 describe('i18n coverage', () => {
-  it('every data-i18n / data-i18n-html / data-i18n-attr key in markup has an EN entry', () => {
+  it('every i18n key in markup and JS has an EN entry', () => {
     const missing = [];
-    for (const f of FILES) {
-      const html = read(f);
-      const textKeys = [...html.matchAll(/data-i18n(?:-html)?="([^"]+)"/g)].map((m) => m[1]);
-      const attrKeys = [...html.matchAll(/data-i18n-attr="([^"]+)"/g)]
-        .flatMap((m) => m[1].split(';').map((p) => p.split(':')[1]?.trim()))
-        .filter(Boolean);
-      for (const k of [...textKeys, ...attrKeys]) if (!(k in EN)) missing.push(`${f}: ${k}`);
+    for (const f of [...FILES, ...JS_FILES]) {
+      const { statics, prefixes } = extractKeys(read(f));
+      for (const k of statics) if (!(k in EN)) missing.push(`${f}: ${k}`);
+      for (const p of prefixes) if (!Object.keys(EN).some((k) => k.startsWith(p))) missing.push(`${f}: ${p}* (dynamic)`);
     }
     expect(missing).toEqual([]);
   });
 
-  it('no orphan EN keys (every key is referenced in markup)', () => {
-    const all = FILES.map(read).join('\n');
-    const used = new Set([
-      ...[...all.matchAll(/data-i18n(?:-html)?="([^"]+)"/g)].map((m) => m[1]),
-      ...[...all.matchAll(/data-i18n-attr="([^"]+)"/g)]
-        .flatMap((m) => m[1].split(';').map((p) => p.split(':')[1]?.trim()))
-        .filter(Boolean),
-    ]);
-    const orphans = Object.keys(EN).filter((k) => !used.has(k));
+  it('no orphan EN keys (every key is referenced in markup or JS)', () => {
+    const all = [...FILES, ...JS_FILES].map(read).join('\n');
+    const { statics, prefixes } = extractKeys(all);
+    const used = new Set(statics);
+    const orphans = Object.keys(EN).filter((k) => !used.has(k) && !prefixes.some((p) => k.startsWith(p)));
     expect(orphans).toEqual([]);
   });
 });

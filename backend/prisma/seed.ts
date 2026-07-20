@@ -8,7 +8,8 @@
  * that already exist for the org).
  */
 import { Prisma, PrismaClient, type Sex, type SmokingStatus } from '@prisma/client';
-import { hashPassword, encryptField, encryptNullable, sha256 } from '../src/shared/crypto.js';
+import { hashPassword, encryptField, encryptNullable, blindIndex } from '../src/shared/crypto.js';
+import { computeEntryHash } from '../src/modules/audit/audit.service.js';
 import {
   assessRisk,
   type RiskFactors,
@@ -176,6 +177,7 @@ async function main(): Promise<void> {
         mrn: p.mrn,
         firstNameEnc: encryptField(p.firstName),
         lastNameEnc: encryptField(p.lastName),
+        lastNameIndex: blindIndex(p.lastName),
         birthDateEnc: encryptNullable(birthDateFromAge(p.age)),
         sex: p.sex,
         ageYears: p.age,
@@ -233,18 +235,31 @@ async function main(): Promise<void> {
     created += 1;
   }
 
-  // Genesis audit entry so the hash chain has a verifiable root.
-  const genesisCanonical = JSON.stringify({
-    o: organization.id, a: owner.id, act: 'seed.bootstrap', rt: null, ri: null, m: null,
+  // Genesis audit entry so the hash chain has a verifiable root. Written only
+  // if the org has no chain yet: a re-seed must not insert a second root
+  // (prevHash NULL mid-chain breaks verification). The hash must be computed
+  // exactly like auditService.record() — canonical payload includes the
+  // timestamp — so reuse its helper and persist the same createdAt that was
+  // hashed.
+  const existingChain = await prisma.auditLog.findFirst({
+    where: { organizationId: organization.id },
+    select: { id: true },
   });
-  await prisma.auditLog.create({
-    data: {
+  if (!existingChain) {
+    const genesisInput = {
       organizationId: organization.id,
       actorUserId: owner.id,
       action: 'seed.bootstrap',
-      entryHash: sha256(`|${genesisCanonical}`),
-    },
-  });
+    };
+    const genesisAt = new Date().toISOString();
+    await prisma.auditLog.create({
+      data: {
+        ...genesisInput,
+        entryHash: computeEntryHash(null, genesisInput, genesisAt),
+        createdAt: new Date(genesisAt),
+      },
+    });
+  }
 
   // eslint-disable-next-line no-console
   console.log(

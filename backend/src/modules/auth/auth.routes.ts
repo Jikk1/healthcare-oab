@@ -55,7 +55,7 @@ function readRefresh(req: FastifyRequest, bodyToken?: string): string | undefine
 }
 
 export async function authRoutes(app: FastifyInstance): Promise<void> {
-  const strictLimit = { rateLimit: { max: 10, timeWindow: 60_000 } };
+  const strictLimit = { rateLimit: { max: config.AUTH_STRICT_RATE_MAX, timeWindow: 60_000 } };
 
   app.post('/v1/auth/register', { config: strictLimit }, async (req, reply) => {
     const body = RegisterBody.parse(req.body);

@@ -57,6 +57,8 @@ services:
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-dev-refresh-secret-change-me-please-32-bytes-min}
       PHI_ENCRYPTION_KEY: ${PHI_ENCRYPTION_KEY:-ZGV2LXBoaS1lbmNyeXB0aW9uLWtleS0zMmJ5dGVzLXh4eHg=}
       CORS_ORIGINS: http://localhost:5173,http://localhost:8080,http://127.0.0.1:5500
+      # Dev-стек: E2E-прогоны логинятся десятками за минуту; прод-дефолт = 10.
+      AUTH_STRICT_RATE_MAX: ${AUTH_STRICT_RATE_MAX:-120}
       OTEL_ENABLED: 'true'
       OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
       METRICS_ENABLED: 'true'

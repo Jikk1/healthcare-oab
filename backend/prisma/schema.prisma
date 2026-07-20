@@ -247,6 +247,10 @@ model Patient {
   firstNameEnc   String
   lastNameEnc    String
   birthDateEnc   String?
+  // Blind index (deterministic HMAC of normalized lastName) — exact-match
+  // search over the encrypted name without revealing it. Nullable: rows
+  // created before the migration are backfilled by scripts/backfill-lastname-index.ts.
+  lastNameIndex  String?
   // Non-identifying attributes kept plaintext for analytics/filtering.
   sex            Sex
   ageYears       Int
@@ -267,6 +271,7 @@ model Patient {
   @@unique([organizationId, mrn])
   @@index([organizationId, latestRiskLevel])
   @@index([organizationId, isArchived])
+  @@index([organizationId, lastNameIndex])
   @@map("patients")
 }
 

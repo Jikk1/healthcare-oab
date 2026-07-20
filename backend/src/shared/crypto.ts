@@ -2,6 +2,7 @@ import {
   createCipheriv,
   createDecipheriv,
   createHash,
+  createHmac,
   randomBytes,
   timingSafeEqual,
 } from 'node:crypto';
@@ -78,6 +79,18 @@ export function encryptNullable(value: string | null | undefined): string | null
 
 export function decryptNullable(value: string | null | undefined): string | null {
   return value === null || value === undefined ? null : decryptField(value);
+}
+
+// ---------- Blind index for searchable PHI ----------
+
+/**
+ * Deterministic HMAC-SHA256 over the normalized value, keyed with the PHI key.
+ * Equal plaintexts produce equal indexes, so an encrypted column becomes
+ * exact-match searchable without revealing the value. Substring search is
+ * deliberately impossible — that would leak information.
+ */
+export function blindIndex(value: string): string {
+  return createHmac('sha256', ENC_KEY).update(value.trim().toLowerCase()).digest('hex');
 }
 
 // ---------- Token generation & hashing ----------
